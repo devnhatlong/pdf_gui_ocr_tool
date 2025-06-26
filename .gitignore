@@ -1,0 +1,51 @@
+# === Python general ===
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.env
+.venv
+venv/
+ENV/
+env/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# === Byte-compiled / cache ===
+*.log
+*.pot
+*.pyc
+
+# === OS-specific ===
+.DS_Store
+Thumbs.db
+
+# === IDEs ===
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# === PDF processing / images ===
+data/
+tmp/
+*.png
+*.jpg
+*.jpeg
+*.ppm
+
+# === Jupyter notebook checkpoints (if any) ===
+.ipynb_checkpoints/
+
+# === OCR output / intermediate files ===
+*.txt
+ocr_output/
+
+# === PDF preview images (if temporarily saved) ===
+preview_images/
