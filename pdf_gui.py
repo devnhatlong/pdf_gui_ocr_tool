@@ -8,6 +8,9 @@ import webbrowser
 import subprocess  # ✅ bổ sung
 import os
 import tempfile
+from PyPDF2 import PdfReader, PdfWriter
+import pymupdf
+fitz = pymupdf
 
 class PDFGuiApp:
     def __init__(self, root):
@@ -61,8 +64,7 @@ class PDFGuiApp:
 
         list_frame = tk.Frame(right_frame)
         list_frame.pack(side=tk.LEFT, fill=tk.Y, padx=5, pady=5)
-        
-        # Thêm scrollbar Y và listbox thay cho combobox
+
         scrollbar = tk.Scrollbar(list_frame)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
@@ -102,11 +104,12 @@ class PDFGuiApp:
                 self.file_listbox.insert(tk.END, f)
             if files:
                 self.file_listbox.select_set(0)
-                self.on_file_select()
+                self.display_pdf_image(None)
 
     def on_file_select(self, event=None):
         self.display_pdf_image(event)
         self.open_pdf_in_browser()
+
     def display_pdf_image(self, event):
         for key in self.entries:
             self.entries[key].delete(0, tk.END)
@@ -152,8 +155,7 @@ class PDFGuiApp:
         mo_ta = self.entries["Mô tả"].get().strip()
 
         parts = [loai, co_quan, so_ky_hieu, ngay_ban_hanh, mo_ta]
-        # Loại bỏ các ký tự không hợp lệ trong tên file Windows
-        parts = [re.sub(r'[\\\\/:*?"<>|\n]', '', p) for p in parts if p.strip()]
+        parts = [re.sub(r'[\\/:*?"<>|\n]', '', p) for p in parts if p.strip()]
         new_name = "_".join(parts) + ".pdf"
 
         self.entries["Tên file mới:"].delete(0, tk.END)
@@ -166,27 +168,47 @@ class PDFGuiApp:
                 new_path = os.path.join(self.selected_folder, new_name)
                 try:
                     os.rename(self.current_file_path, new_path)
-                    self.select_folder()  # refresh list
+                    self.select_folder()
                     self.current_file_path = new_path
                 except Exception as e:
                     print("Lỗi đổi tên:", e)
 
     def open_pdf_in_browser(self):
         if self.current_file_path and os.path.exists(self.current_file_path):
-            # 🔒 Nếu file đã mở rồi, không mở lại nữa
             if self.last_opened_path == self.current_file_path:
                 return
-            self.last_opened_path = self.current_file_path
 
-            chrome_paths = [
-                r"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-                r"C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe"
-            ]
-            chrome_path = next((p for p in chrome_paths if os.path.exists(p)), None)
-            if chrome_path:
-                subprocess.Popen([chrome_path, self.current_file_path], shell=True)
-            else:
-                webbrowser.open(self.current_file_path)
+            try:
+                from pdf2image import convert_from_path
+                # 1. Convert trang đầu sang ảnh đen trắng
+                images = convert_from_path(self.current_file_path, first_page=1, last_page=1, dpi=200)
+                bw_img = images[0].convert("L")
+
+                # 2. Tạo PDF mới chứa ảnh đó bằng fitz
+                temp_pdf_path = os.path.join(tempfile.gettempdir(), "bw_page1.pdf")
+                doc = fitz.open()
+                rect = fitz.Rect(0, 0, bw_img.width, bw_img.height)
+                page = doc.new_page(width=bw_img.width, height=bw_img.height)
+                temp_img_path = os.path.join(tempfile.gettempdir(), "bw_page1.png")
+                bw_img.save(temp_img_path)
+                page.insert_image(rect, filename=temp_img_path)
+                doc.save(temp_pdf_path)
+                doc.close()
+
+                self.last_opened_path = self.current_file_path
+
+                chrome_paths = [
+                    r"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+                    r"C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe"
+                ]
+                chrome_path = next((p for p in chrome_paths if os.path.exists(p)), None)
+                if chrome_path:
+                    subprocess.Popen([chrome_path, temp_pdf_path], shell=True)
+                else:
+                    webbrowser.open(temp_pdf_path)
+
+            except Exception as e:
+                print(f"Lỗi tạo PDF trắng đen: {e}")
 
 if __name__ == '__main__':
     root = tk.Tk()
