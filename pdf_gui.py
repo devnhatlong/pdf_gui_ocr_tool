@@ -11,7 +11,7 @@ import tempfile
 from PyPDF2 import PdfReader, PdfWriter
 import pymupdf
 fitz = pymupdf
-
+import unicodedata
 class PDFGuiApp:
     def __init__(self, root):
         self.root = root
@@ -55,7 +55,6 @@ class PDFGuiApp:
 
         tk.Button(left_frame, text="Chọn Thư Mục PDF", command=self.select_folder, bg="orange").pack(fill=tk.X, padx=5, pady=10)
 
-        tk.Button(left_frame, text="🔁 Tạo tên file mới", command=self.generate_new_filename, bg="lightblue").pack(fill=tk.X, padx=5, pady=5)
         tk.Button(left_frame, text="💾 Đổi tên file", command=self.rename_file, bg="lightgreen").pack(fill=tk.X, padx=5, pady=5)
 
         right_frame = tk.Frame(self.root)
@@ -68,31 +67,11 @@ class PDFGuiApp:
         scrollbar = tk.Scrollbar(list_frame)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-        self.file_listbox = tk.Listbox(list_frame, width=40, yscrollcommand=scrollbar.set)
+        self.file_listbox = tk.Listbox(list_frame, width=100, yscrollcommand=scrollbar.set)
         self.file_listbox.pack(fill=tk.BOTH, expand=True)
         self.file_listbox.bind("<<ListboxSelect>>", self.on_file_select)
 
         scrollbar.config(command=self.file_listbox.yview)
-
-        tk.Button(list_frame, text="🔍 Mở PDF trong Chrome", command=self.open_pdf_in_browser).pack(pady=5)
-
-        preview_frame = tk.Frame(right_frame)
-        preview_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=5, pady=5)
-
-        tk.Label(preview_frame, text="Trang đầu PDF (ảnh)").pack(anchor='w')
-
-        image_text_frame = tk.Frame(preview_frame)
-        image_text_frame.pack(fill=tk.BOTH, expand=True)
-
-        self.canvas = tk.Canvas(image_text_frame, bg='gray', width=600)
-        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
-        self.ocr_text = Text(image_text_frame, wrap='word', width=50)
-        self.ocr_text.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
-
-        self.selected_folder = None
-        self.tk_image = None
-        self.current_file_path = None
 
     def select_folder(self):
         folder = filedialog.askdirectory()
@@ -111,40 +90,46 @@ class PDFGuiApp:
         self.open_pdf_in_browser()
 
     def display_pdf_image(self, event):
-        for key in self.entries:
-            self.entries[key].delete(0, tk.END)
-        self.entries["Cơ quan ban hành"].insert(0, "CAT")
-        self.loai_vb.set('')
         if not self.selected_folder:
             return
+
         selection = self.file_listbox.curselection()
         if not selection:
             return
+
         index = selection[0]
         filename = self.file_listbox.get(index)
-        if filename:
-            full_path = os.path.join(self.selected_folder, filename)
-            self.current_file_path = full_path
+        if not filename:
+            return
 
-            for key in self.entries:
-                self.entries[key].delete(0, tk.END)
-            self.entries["Cơ quan ban hành"].insert(0, "CAT")
-            self.loai_vb.set('')
-            self.entries["Tên file hiện tại:"].insert(0, filename)
+        full_path = os.path.join(self.selected_folder, filename)
+        self.current_file_path = full_path
 
-            try:
-                image_paths = pdf_to_images(full_path, max_pages=1, save_to_disk=False)
-                if image_paths:
-                    image = Image.open(image_paths[0])
-                    image = image.resize((600, 800), Image.Resampling.LANCZOS)
-                    self.tk_image = ImageTk.PhotoImage(image)
-                    self.canvas.delete("all")
-                    self.canvas.create_image(0, 0, anchor='nw', image=self.tk_image)
-                    self.ocr_text.delete(1.0, tk.END)
-                    self.ocr_text.insert(tk.END, "(Bạn có thể thêm tính năng OCR để tự trích xuất nội dung từ ảnh tại đây)")
-            except Exception as e:
+        # 🟡 Chỉ cập nhật các trường cần thiết
+        self.entries["Tên file hiện tại:"].delete(0, tk.END)
+        self.entries["Tên file hiện tại:"].insert(0, filename)
+
+        self.entries["Tên file mới:"].delete(0, tk.END)
+        self.generate_new_filename()  # Gợi ý tên mới nếu đủ dữ liệu
+
+        try:
+            image_paths = pdf_to_images(full_path, max_pages=1, save_to_disk=False)
+            if image_paths:
+                image = Image.open(image_paths[0])
+                image = image.resize((600, 800), Image.Resampling.LANCZOS)
+                self.tk_image = ImageTk.PhotoImage(image)
                 self.canvas.delete("all")
-                self.canvas.create_text(10, 10, anchor='nw', text=f"Không thể hiển thị ảnh: {e}")
+                self.canvas.create_image(0, 0, anchor='nw', image=self.tk_image)
+                self.ocr_text.delete(1.0, tk.END)
+                self.ocr_text.insert(tk.END, "(Bạn có thể thêm tính năng OCR để tự trích xuất nội dung từ ảnh tại đây)")
+        except Exception as e:
+            self.canvas.delete("all")
+            self.canvas.create_text(10, 10, anchor='nw', text=f"Không thể hiển thị ảnh: {e}")
+
+    def remove_accents(self, input_str):
+        nfkd_form = unicodedata.normalize('NFKD', input_str)
+        no_accents = ''.join([c for c in nfkd_form if not unicodedata.combining(c)])
+        return no_accents.replace('đ', 'd').replace('Đ', 'D')
 
     def generate_new_filename(self):
         import re
@@ -153,6 +138,7 @@ class PDFGuiApp:
         so_ky_hieu = self.entries["Số ký hiệu"].get().strip()
         ngay_ban_hanh = self.entries["Ngày ban hành"].get().strip().replace("/", "-")
         mo_ta = self.entries["Mô tả"].get().strip()
+        mo_ta = self.remove_accents(mo_ta)
 
         parts = [loai, co_quan, so_ky_hieu, ngay_ban_hanh, mo_ta]
         parts = [re.sub(r'[\\/:*?"<>|\n]', '', p) for p in parts if p.strip()]
