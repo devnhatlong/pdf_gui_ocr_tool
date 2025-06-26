@@ -55,6 +55,7 @@ class PDFGuiApp:
 
         tk.Button(left_frame, text="Chọn Thư Mục PDF", command=self.select_folder, bg="orange").pack(fill=tk.X, padx=5, pady=10)
 
+        tk.Button(left_frame, text="🔁 Tạo tên file mới", command=self.generate_new_filename, bg="lightblue").pack(fill=tk.X, padx=5, pady=5)
         tk.Button(left_frame, text="💾 Đổi tên file", command=self.rename_file, bg="lightgreen").pack(fill=tk.X, padx=5, pady=5)
 
         right_frame = tk.Frame(self.root)
@@ -67,11 +68,31 @@ class PDFGuiApp:
         scrollbar = tk.Scrollbar(list_frame)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-        self.file_listbox = tk.Listbox(list_frame, width=100, yscrollcommand=scrollbar.set)
+        self.file_listbox = tk.Listbox(list_frame, width=40, yscrollcommand=scrollbar.set)
         self.file_listbox.pack(fill=tk.BOTH, expand=True)
         self.file_listbox.bind("<<ListboxSelect>>", self.on_file_select)
 
         scrollbar.config(command=self.file_listbox.yview)
+
+        tk.Button(list_frame, text="🔍 Mở PDF trong Chrome", command=self.open_pdf_in_browser).pack(pady=5)
+
+        preview_frame = tk.Frame(right_frame)
+        preview_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        tk.Label(preview_frame, text="Trang đầu PDF (ảnh)").pack(anchor='w')
+
+        image_text_frame = tk.Frame(preview_frame)
+        image_text_frame.pack(fill=tk.BOTH, expand=True)
+
+        self.canvas = tk.Canvas(image_text_frame, bg='gray', width=600)
+        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        self.ocr_text = Text(image_text_frame, wrap='word', width=50)
+        self.ocr_text.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+
+        self.selected_folder = None
+        self.tk_image = None
+        self.current_file_path = None
 
     def select_folder(self):
         folder = filedialog.askdirectory()
@@ -106,11 +127,18 @@ class PDFGuiApp:
         self.current_file_path = full_path
 
         # 🟡 Chỉ cập nhật các trường cần thiết
-        self.entries["Tên file hiện tại:"].delete(0, tk.END)
+        for label, entry in self.entries.items():
+            entry.delete(0, tk.END)
+            if label == "Cơ quan ban hành":
+                entry.insert(0, "CAT")
+
+        self.loai_vb.set("")  # Reset loại văn bản
+
+        # Cập nhật tên file hiện tại
         self.entries["Tên file hiện tại:"].insert(0, filename)
 
-        self.entries["Tên file mới:"].delete(0, tk.END)
-        self.generate_new_filename()  # Gợi ý tên mới nếu đủ dữ liệu
+        # Gợi ý tên mới (sẽ trống nếu chưa nhập gì)
+        self.generate_new_filename()
 
         try:
             image_paths = pdf_to_images(full_path, max_pages=1, save_to_disk=False)
