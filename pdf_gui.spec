@@ -2,16 +2,17 @@
 
 
 a = Analysis(
-    ['pdf_gui.py'],
+    ['D:\\Develop\\pdf_gui_ocr_tool\\pdf_gui.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('D:\\Develop\\pdf_gui_ocr_tool\\poppler-24.08.0', 'poppler-24.08.0')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[],
     noarchive=False,
+    optimize=0,
 )
 pyz = PYZ(a.pure)
 

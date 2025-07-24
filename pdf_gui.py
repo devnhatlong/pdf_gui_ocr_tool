@@ -12,6 +12,12 @@ from PyPDF2 import PdfReader, PdfWriter
 import pymupdf
 fitz = pymupdf
 import unicodedata
+import pytesseract
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+POPPLER_PATH = os.path.join(BASE_DIR, "poppler-24.08.0", "Library", "bin")
+
 class PDFGuiApp:
     def __init__(self, root):
         self.root = root
@@ -73,8 +79,6 @@ class PDFGuiApp:
         self.file_listbox.bind("<<ListboxSelect>>", self.on_file_select)
 
         scrollbar.config(command=self.file_listbox.yview)
-
-        tk.Button(list_frame, text="🔍 Mở PDF trong Chrome", command=self.open_pdf_in_browser).pack(pady=5)
 
         preview_frame = tk.Frame(right_frame)
         preview_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=5, pady=5)
@@ -166,7 +170,7 @@ class PDFGuiApp:
         so_ky_hieu = self.entries["Số ký hiệu"].get().strip()
         ngay_ban_hanh = self.entries["Ngày ban hành"].get().strip().replace("/", "-")
         mo_ta = self.entries["Mô tả"].get().strip()
-        mo_ta = self.remove_accents(mo_ta)
+        mo_ta = self.remove_accents(mo_ta).replace(" ", "")
 
         parts = [loai, co_quan, so_ky_hieu, ngay_ban_hanh, mo_ta]
         parts = [re.sub(r'[\\/:*?"<>|\n]', '', p) for p in parts if p.strip()]
@@ -195,7 +199,7 @@ class PDFGuiApp:
             try:
                 from pdf2image import convert_from_path
                 # 1. Convert trang đầu sang ảnh đen trắng
-                images = convert_from_path(self.current_file_path, first_page=1, last_page=1, dpi=200)
+                images = convert_from_path(self.current_file_path, first_page=1, last_page=1, dpi=200, poppler_path=POPPLER_PATH)
                 bw_img = images[0].convert("L")
 
                 # 2. Tạo PDF mới chứa ảnh đó bằng fitz
