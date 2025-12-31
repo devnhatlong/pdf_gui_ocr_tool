@@ -24,18 +24,22 @@ class PDFGuiApp:
     # UI
     # ==================================================
     def setup_ui(self):
-        left_frame = tk.Frame(self.root)
-        left_frame.pack(side=tk.LEFT, fill=tk.Y, padx=5, pady=5)
+        # PanedWindow để có thể kéo thay đổi kích thước
+        main_paned = tk.PanedWindow(self.root, orient=tk.HORIZONTAL, sashrelief=tk.RAISED, sashwidth=5)
+        main_paned.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+        
+        left_frame = tk.Frame(main_paned, width=320)
+        main_paned.add(left_frame, minsize=250, width=320)
 
         tk.Label(left_frame, text="Thông tin File PDF",
-                 font=("Arial", 12, "bold"), pady=10).pack()
+                 font=("Arial", 11, "bold"), pady=8).pack()
 
         self.entries = {}
-        for label in ["Cơ quan ban hành", "Số ký hiệu", "Ngày ban hành", "Mô tả"]:
+        for label in ["Cơ quan ban hành", "Số ký hiệu", "Ngày ban hành", "Trích yếu"]:
             frame = tk.Frame(left_frame)
             frame.pack(fill=tk.X, pady=2)
-            tk.Label(frame, text=label + ":", width=15, anchor="w").pack(side=tk.LEFT)
-            entry = tk.Entry(frame, font=("Arial", 12), width=50)
+            tk.Label(frame, text=label + ":", width=12, anchor="w", font=("Arial", 9)).pack(side=tk.LEFT)
+            entry = tk.Entry(frame, font=("Arial", 10), width=20)
             entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
             if label == "Cơ quan ban hành":
                 entry.insert(0, "CAT")
@@ -44,10 +48,11 @@ class PDFGuiApp:
 
         frame_lv = tk.Frame(left_frame)
         frame_lv.pack(fill=tk.X, pady=2)
-        tk.Label(frame_lv, text="Loại văn bản:", width=15).pack(side=tk.LEFT)
+        tk.Label(frame_lv, text="Loại văn bản:", width=12, font=("Arial", 9)).pack(side=tk.LEFT)
         self.loai_vb = ttk.Combobox(
             frame_lv,
             values=["BC", "CV", "KH", "KL", "QĐ", "NQ", "TTr", "TB", "PA", "CTr"],
+            font=("Arial", 10),
         )
         self.loai_vb.pack(side=tk.LEFT, fill=tk.X, expand=True)
         self.loai_vb.bind("<<ComboboxSelected>>", lambda e: self.generate_new_filename())
@@ -55,39 +60,43 @@ class PDFGuiApp:
         for label in ["Tên file hiện tại:", "Tên file mới:"]:
             frame = tk.Frame(left_frame)
             frame.pack(fill=tk.X, pady=2)
-            tk.Label(frame, text=label, width=15, anchor="w").pack(side=tk.LEFT)
-            entry = tk.Entry(frame, font=("Arial", 12), width=50)
+            tk.Label(frame, text=label, width=12, anchor="w", font=("Arial", 9)).pack(side=tk.LEFT)
+            entry = tk.Entry(frame, font=("Arial", 9), width=20)
             entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
             self.entries[label] = entry
 
         tk.Button(left_frame, text="Chọn Thư Mục PDF",
-                  command=self.select_folder, bg="orange").pack(fill=tk.X, pady=10)
+                  command=self.select_folder, bg="orange", font=("Arial", 9)).pack(fill=tk.X, pady=8)
         tk.Button(left_frame, text="🔁 Tạo tên file mới",
-                  command=self.generate_new_filename, bg="lightblue").pack(fill=tk.X)
+                  command=self.generate_new_filename, bg="lightblue", font=("Arial", 9)).pack(fill=tk.X, pady=2)
         tk.Button(left_frame, text="💾 Đổi tên file",
-                  command=self.rename_file, bg="lightgreen").pack(fill=tk.X, pady=5)
+                  command=self.rename_file, bg="lightgreen", font=("Arial", 9)).pack(fill=tk.X, pady=2)
 
         # ===== RIGHT =====
-        right_frame = tk.Frame(self.root)
-        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+        right_frame = tk.Frame(main_paned)
+        main_paned.add(right_frame, minsize=400)
 
-        tk.Label(right_frame, text="File PDF trong thư mục").pack(anchor="w", padx=5)
+        # PanedWindow cho phần bên phải (list và preview)
+        right_paned = tk.PanedWindow(right_frame, orient=tk.HORIZONTAL, sashrelief=tk.RAISED, sashwidth=5)
+        right_paned.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
 
-        list_frame = tk.Frame(right_frame)
-        list_frame.pack(side=tk.LEFT, fill=tk.Y)
+        list_frame = tk.Frame(right_paned, width=200)
+        right_paned.add(list_frame, minsize=150, width=200)
+        
+        tk.Label(list_frame, text="File PDF trong thư mục", font=("Arial", 9, "bold")).pack(anchor="w", padx=2, pady=2)
 
         scrollbar = tk.Scrollbar(list_frame)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         self.file_listbox = tk.Listbox(
-            list_frame, width=40, yscrollcommand=scrollbar.set
+            list_frame, yscrollcommand=scrollbar.set, font=("Arial", 9)
         )
         self.file_listbox.pack(fill=tk.BOTH, expand=True)
         self.file_listbox.bind("<<ListboxSelect>>", self.on_file_select)
         scrollbar.config(command=self.file_listbox.yview)
 
-        preview_frame = tk.Frame(right_frame)
-        preview_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+        preview_frame = tk.Frame(right_paned)
+        right_paned.add(preview_frame, minsize=400)
 
         header = tk.Frame(preview_frame)
         header.pack(fill=tk.X)
@@ -95,14 +104,17 @@ class PDFGuiApp:
         tk.Label(header, text=" | ").pack(side=tk.LEFT)
         tk.Label(header, text="OCR text", font=("Arial", 10, "bold")).pack(side=tk.LEFT)
 
-        body = tk.Frame(preview_frame)
-        body.pack(fill=tk.BOTH, expand=True)
+        # PanedWindow cho preview (ảnh và OCR text)
+        preview_paned = tk.PanedWindow(preview_frame, orient=tk.HORIZONTAL, sashrelief=tk.RAISED, sashwidth=5)
+        preview_paned.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
 
-        self.canvas = tk.Canvas(body, width=600, bg="gray")
-        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        canvas_frame = tk.Frame(preview_paned)
+        preview_paned.add(canvas_frame, minsize=300, width=500)
+        self.canvas = tk.Canvas(canvas_frame, bg="gray")
+        self.canvas.pack(fill=tk.BOTH, expand=True)
 
-        ocr_frame = tk.Frame(body)
-        ocr_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+        ocr_frame = tk.Frame(preview_paned)
+        preview_paned.add(ocr_frame, minsize=200, width=300)
 
         ocr_scroll = tk.Scrollbar(ocr_frame)
         ocr_scroll.pack(side=tk.RIGHT, fill=tk.Y)
@@ -212,7 +224,7 @@ class PDFGuiApp:
         cq = self.entries["Cơ quan ban hành"].get().strip()
         so = self.entries["Số ký hiệu"].get().strip()
         ngay = self.entries["Ngày ban hành"].get().replace("/", "-")
-        mota = self.remove_accents(self.entries["Mô tả"].get()).replace(" ", "")
+        mota = self.remove_accents(self.entries["Trích yếu"].get()).replace(" ", "")
 
         parts = [loai, cq, so, ngay, mota]
         parts = [re.sub(r'[\\/:*?"<>|]', "", p) for p in parts if p]
