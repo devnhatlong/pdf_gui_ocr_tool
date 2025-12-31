@@ -10,6 +10,34 @@ import unicodedata
 import re
 
 
+def create_entry_with_placeholder(parent, placeholder_text, width=20, font=("Arial", 10)):
+    """Tạo Entry với placeholder text"""
+    entry = tk.Entry(parent, font=font, width=width, fg="grey")
+    entry.insert(0, placeholder_text)
+    
+    def on_focus_in(event):
+        if entry.get() == placeholder_text:
+            entry.delete(0, tk.END)
+            entry.config(fg="black")
+    
+    def on_focus_out(event):
+        if entry.get() == "":
+            entry.insert(0, placeholder_text)
+            entry.config(fg="grey")
+    
+    entry.bind("<FocusIn>", on_focus_in)
+    entry.bind("<FocusOut>", on_focus_out)
+    
+    # Kiểm tra khi có text được nhập
+    def on_key_release(event):
+        if entry.get() != placeholder_text:
+            entry.config(fg="black")
+    
+    entry.bind("<KeyRelease>", on_key_release)
+    
+    return entry
+
+
 class PDFGuiApp:
     def __init__(self, root):
         self.root = root
@@ -44,7 +72,7 @@ class PDFGuiApp:
         tk.Label(left_frame, text="Thông tin File PDF",
                  font=("Arial", 11, "bold"), pady=8).pack()
 
-        # Loại văn bản (đưa lên đầu)
+        # Loại văn bản (đưa lên đầu) - Combobox có thể tự nhập
         frame_lv = tk.Frame(left_frame)
         frame_lv.pack(fill=tk.X, pady=2)
         tk.Label(frame_lv, text="Loại văn bản:", width=16, font=("Arial", 9), anchor="w").pack(side=tk.LEFT)
@@ -52,20 +80,35 @@ class PDFGuiApp:
             frame_lv,
             values=["BC", "CV", "KH", "KL", "QĐ", "NQ", "TTr", "TB", "PA", "CTr"],
             font=("Arial", 10),
+            state="normal"  # Cho phép tự nhập
         )
         self.loai_vb.pack(side=tk.LEFT, fill=tk.X, expand=True)
         self.loai_vb.bind("<<ComboboxSelected>>", lambda e: self.generate_new_filename())
+        self.loai_vb.bind("<KeyRelease>", lambda e: self.generate_new_filename())  # Cập nhật khi gõ
 
         self.entries = {}
+        self.placeholders = {
+            "Cơ quan ban hành": "CAT, CAX, UBND...",
+            "Số ký hiệu": "123/BC-CAX",
+            "Ngày ban hành": "01/01/2024",
+            "Trích yếu": "V/v thông báo..."
+        }
         for label in ["Cơ quan ban hành", "Số ký hiệu", "Ngày ban hành", "Trích yếu"]:
             frame = tk.Frame(left_frame)
             frame.pack(fill=tk.X, pady=2)
             tk.Label(frame, text=label + ":", width=16, anchor="w", font=("Arial", 9)).pack(side=tk.LEFT)
-            entry = tk.Entry(frame, font=("Arial", 10), width=20)
+            entry = create_entry_with_placeholder(frame, self.placeholders[label], width=20, font=("Arial", 10))
             entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
-            if label == "Cơ quan ban hành":
-                entry.insert(0, "CAT")
-            entry.bind("<KeyRelease>", lambda e: self.generate_new_filename())
+            
+            # Custom key release để xử lý placeholder
+            def make_key_handler(entry_widget, placeholder):
+                def handler(event):
+                    current = entry_widget.get()
+                    if current and current != placeholder:
+                        self.generate_new_filename()
+                return handler
+            
+            entry.bind("<KeyRelease>", make_key_handler(entry, self.placeholders[label]))
             self.entries[label] = entry
 
         for label in ["Tên file hiện tại:", "Tên file mới:"]:
@@ -177,14 +220,20 @@ class PDFGuiApp:
 
         meta = self.extract_metadata_from_ocr(text)
         if meta["so_ky_hieu"]:
-            self.entries["Số ký hiệu"].delete(0, tk.END)
-            self.entries["Số ký hiệu"].insert(0, meta["so_ky_hieu"])
+            entry = self.entries["Số ký hiệu"]
+            entry.delete(0, tk.END)
+            entry.insert(0, meta["so_ky_hieu"])
+            entry.config(fg="black")
         if meta["ngay_ban_hanh"]:
-            self.entries["Ngày ban hành"].delete(0, tk.END)
-            self.entries["Ngày ban hành"].insert(0, meta["ngay_ban_hanh"])
+            entry = self.entries["Ngày ban hành"]
+            entry.delete(0, tk.END)
+            entry.insert(0, meta["ngay_ban_hanh"])
+            entry.config(fg="black")
         if meta["trich_yeu"]:
-            self.entries["Trích yếu"].delete(0, tk.END)
-            self.entries["Trích yếu"].insert(0, meta["trich_yeu"])
+            entry = self.entries["Trích yếu"]
+            entry.delete(0, tk.END)
+            entry.insert(0, meta["trich_yeu"])
+            entry.config(fg="black")
 
         self.generate_new_filename()
 
@@ -301,14 +350,24 @@ class PDFGuiApp:
     # ==================================================
     # RENAME
     # ==================================================
+    def get_entry_value(self, label):
+        """Lấy giá trị từ entry, bỏ qua nếu là placeholder"""
+        entry = self.entries[label]
+        placeholder = self.placeholders.get(label, "")
+        value = entry.get().strip()
+        if value == placeholder:
+            return ""
+        return value
+
     def generate_new_filename(self):
         loai = self.loai_vb.get().strip()
-        cq = self.entries["Cơ quan ban hành"].get().strip()
-        so = self.entries["Số ký hiệu"].get().strip()
-        ngay = self.entries["Ngày ban hành"].get().replace("/", "-")
+        cq = self.get_entry_value("Cơ quan ban hành")
+        so = self.get_entry_value("Số ký hiệu")
+        ngay_raw = self.get_entry_value("Ngày ban hành")
+        ngay = ngay_raw.replace("/", "-")
         
         # Xử lý trích yếu: bỏ dấu, viết hoa chữ cái đầu mỗi từ, sau đó bỏ khoảng trắng
-        trich_yeu = self.entries["Trích yếu"].get().strip()
+        trich_yeu = self.get_entry_value("Trích yếu")
         if trich_yeu:
             # Bỏ dấu
             trich_yeu = self.remove_accents(trich_yeu)
