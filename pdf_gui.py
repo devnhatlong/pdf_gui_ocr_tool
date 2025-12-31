@@ -34,21 +34,10 @@ class PDFGuiApp:
         tk.Label(left_frame, text="Thông tin File PDF",
                  font=("Arial", 11, "bold"), pady=8).pack()
 
-        self.entries = {}
-        for label in ["Cơ quan ban hành", "Số ký hiệu", "Ngày ban hành", "Trích yếu"]:
-            frame = tk.Frame(left_frame)
-            frame.pack(fill=tk.X, pady=2)
-            tk.Label(frame, text=label + ":", width=12, anchor="w", font=("Arial", 9)).pack(side=tk.LEFT)
-            entry = tk.Entry(frame, font=("Arial", 10), width=20)
-            entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
-            if label == "Cơ quan ban hành":
-                entry.insert(0, "CAT")
-            entry.bind("<KeyRelease>", lambda e: self.generate_new_filename())
-            self.entries[label] = entry
-
+        # Loại văn bản (đưa lên đầu)
         frame_lv = tk.Frame(left_frame)
         frame_lv.pack(fill=tk.X, pady=2)
-        tk.Label(frame_lv, text="Loại văn bản:", width=12, font=("Arial", 9)).pack(side=tk.LEFT)
+        tk.Label(frame_lv, text="Loại văn bản:", width=16, font=("Arial", 9), anchor="w").pack(side=tk.LEFT)
         self.loai_vb = ttk.Combobox(
             frame_lv,
             values=["BC", "CV", "KH", "KL", "QĐ", "NQ", "TTr", "TB", "PA", "CTr"],
@@ -57,10 +46,22 @@ class PDFGuiApp:
         self.loai_vb.pack(side=tk.LEFT, fill=tk.X, expand=True)
         self.loai_vb.bind("<<ComboboxSelected>>", lambda e: self.generate_new_filename())
 
+        self.entries = {}
+        for label in ["Cơ quan ban hành", "Số ký hiệu", "Ngày ban hành", "Trích yếu"]:
+            frame = tk.Frame(left_frame)
+            frame.pack(fill=tk.X, pady=2)
+            tk.Label(frame, text=label + ":", width=16, anchor="w", font=("Arial", 9)).pack(side=tk.LEFT)
+            entry = tk.Entry(frame, font=("Arial", 10), width=20)
+            entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+            if label == "Cơ quan ban hành":
+                entry.insert(0, "CAT")
+            entry.bind("<KeyRelease>", lambda e: self.generate_new_filename())
+            self.entries[label] = entry
+
         for label in ["Tên file hiện tại:", "Tên file mới:"]:
             frame = tk.Frame(left_frame)
             frame.pack(fill=tk.X, pady=2)
-            tk.Label(frame, text=label, width=12, anchor="w", font=("Arial", 9)).pack(side=tk.LEFT)
+            tk.Label(frame, text=label, width=16, anchor="w", font=("Arial", 9)).pack(side=tk.LEFT)
             entry = tk.Entry(frame, font=("Arial", 9), width=20)
             entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
             self.entries[label] = entry
@@ -173,6 +174,9 @@ class PDFGuiApp:
         if meta["ngay_ban_hanh"]:
             self.entries["Ngày ban hành"].delete(0, tk.END)
             self.entries["Ngày ban hành"].insert(0, meta["ngay_ban_hanh"])
+        if meta["trich_yeu"]:
+            self.entries["Trích yếu"].delete(0, tk.END)
+            self.entries["Trích yếu"].insert(0, meta["trich_yeu"])
 
         self.generate_new_filename()
 
@@ -184,11 +188,12 @@ class PDFGuiApp:
         return "".join(c for c in s if not unicodedata.combining(c)).lower()
 
     def extract_metadata_from_ocr(self, text):
-        result = {"so_ky_hieu": "", "ngay_ban_hanh": ""}
+        result = {"so_ky_hieu": "", "ngay_ban_hanh": "", "trich_yeu": ""}
         if not text:
             return result
 
-        lines = text.splitlines()[:15]
+        lines = text.splitlines()[:20]  # Tăng lên 20 dòng để lấy được trích yếu
+        original_lines = lines  # Giữ nguyên để lấy text gốc (có dấu)
         t = self.remove_accents(" ".join(lines))
         t = re.sub(r"\s+", " ", t)
 
@@ -207,12 +212,81 @@ class PDFGuiApp:
         if m:
             d, mth, y = m.groups()
             result["ngay_ban_hanh"] = f"{d.zfill(2)}/{mth.zfill(2)}/{y}"
-            return result
+        else:
+            m = re.search(r"\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})\b", t)
+            if m:
+                d, mth, y = m.groups()
+                result["ngay_ban_hanh"] = f"{d.zfill(2)}/{mth.zfill(2)}/{y}"
 
-        m = re.search(r"\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})\b", t)
-        if m:
-            d, mth, y = m.groups()
-            result["ngay_ban_hanh"] = f"{d.zfill(2)}/{mth.zfill(2)}/{y}"
+        # === TRÍCH YẾU ===
+        # Tìm pattern "V/v" hoặc "Về việc" trong text gốc (có dấu)
+        original_text = "\n".join(original_lines)
+        
+        # Tìm dòng chứa "V/v" hoặc "Về việc"
+        vv_line_idx = None
+        vv_prefix = ""
+        for idx, line in enumerate(original_lines):
+            line_clean = line.strip()
+            if re.search(r"^[\s]*(V/v|Về việc)[\s:]", line_clean, re.IGNORECASE):
+                vv_line_idx = idx
+                # Tìm prefix "V/v" hoặc "Về việc"
+                match = re.search(r"^[\s]*((?:V/v|Về việc)[\s:]*)", line_clean, re.IGNORECASE)
+                if match:
+                    vv_prefix = match.group(1).strip()
+                break
+        
+        if vv_line_idx is not None:
+            # Lấy các dòng liên tiếp sau "V/v" cho đến khi gặp dòng dừng (trước "Kính gửi")
+            trich_yeu_lines = []
+            stop_keywords = ["kính gửi", "về", "cơ quan"]
+            
+            for i in range(vv_line_idx, min(vv_line_idx + 5, len(original_lines))):  # Tối đa 5 dòng
+                line = original_lines[i].strip()
+                if not line:
+                    continue
+                
+                # Kiểm tra xem có phải dòng dừng không (đặc biệt là "Kính gửi")
+                line_lower = line.lower()
+                if any(kw in line_lower for kw in stop_keywords):
+                    break
+                
+                # Nếu là dòng đầu tiên (chứa V/v), lấy toàn bộ dòng
+                if i == vv_line_idx:
+                    trich_yeu_lines.append(line)
+                else:
+                    # Nếu dòng quá ngắn (< 5 ký tự) có thể là ký tự lẻ, bỏ qua
+                    if len(line) < 5:
+                        continue
+                    # Kiểm tra xem có phải là số hoặc ngày không (thường là thông tin khác)
+                    if re.match(r"^[\s]*(?:Số|Ngày)[\s:]", line, re.IGNORECASE):
+                        break
+                    trich_yeu_lines.append(line)
+            
+            if trich_yeu_lines:
+                trich_yeu = " ".join(trich_yeu_lines)
+                # Loại bỏ khoảng trắng thừa
+                trich_yeu = re.sub(r"\s+", " ", trich_yeu).strip()
+                # Giới hạn độ dài (tối đa 250 ký tự)
+                if len(trich_yeu) > 250:
+                    trich_yeu = trich_yeu[:247] + "..."
+                if trich_yeu and len(trich_yeu) >= 5:
+                    result["trich_yeu"] = trich_yeu
+        
+        # Nếu không tìm thấy "V/v", tìm dòng có nội dung ngắn sau ngày tháng
+        if not result["trich_yeu"]:
+            # Tìm dòng đầu tiên sau ngày tháng mà không phải là "Kính gửi" hoặc "Cơ quan"
+            for i, line in enumerate(original_lines):
+                line_clean = line.strip()
+                if not line_clean or len(line_clean) < 15:
+                    continue
+                # Bỏ qua các dòng thông tin cơ bản
+                skip_keywords = ["kính gửi", "cơ quan", "số:", "ngày", "độc lập", "tự do", "hạnh phúc"]
+                if any(x in line_clean.lower() for x in skip_keywords):
+                    continue
+                # Lấy dòng có độ dài hợp lý (15-200 ký tự)
+                if 15 <= len(line_clean) <= 200:
+                    result["trich_yeu"] = line_clean
+                    break
 
         return result
 
@@ -224,7 +298,18 @@ class PDFGuiApp:
         cq = self.entries["Cơ quan ban hành"].get().strip()
         so = self.entries["Số ký hiệu"].get().strip()
         ngay = self.entries["Ngày ban hành"].get().replace("/", "-")
-        mota = self.remove_accents(self.entries["Trích yếu"].get()).replace(" ", "")
+        
+        # Xử lý trích yếu: bỏ dấu, viết hoa chữ cái đầu mỗi từ, sau đó bỏ khoảng trắng
+        trich_yeu = self.entries["Trích yếu"].get().strip()
+        if trich_yeu:
+            # Bỏ dấu
+            trich_yeu = self.remove_accents(trich_yeu)
+            # Viết hoa chữ cái đầu mỗi từ
+            trich_yeu = trich_yeu.title()
+            # Bỏ khoảng trắng
+            mota = trich_yeu.replace(" ", "")
+        else:
+            mota = ""
 
         parts = [loai, cq, so, ngay, mota]
         parts = [re.sub(r'[\\/:*?"<>|]', "", p) for p in parts if p]
