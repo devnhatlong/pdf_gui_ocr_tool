@@ -15,6 +15,15 @@ class PDFGuiApp:
         self.root = root
         self.root.title("Xử lý File số hóa")
         self.root.geometry("1200x700")
+        
+        # Set icon cho cửa sổ (nếu có file icon.ico)
+        icon_path = os.path.join(os.path.dirname(__file__), "assets", "icon.ico")
+        if os.path.exists(icon_path):
+            try:
+                self.root.iconbitmap(icon_path)
+            except:
+                pass  # Bỏ qua nếu không set được icon
+        
         self.selected_folder = None
         self.tk_image = None
         self.current_file_path = None
@@ -68,8 +77,6 @@ class PDFGuiApp:
 
         tk.Button(left_frame, text="Chọn Thư Mục PDF",
                   command=self.select_folder, bg="orange", font=("Arial", 9)).pack(fill=tk.X, pady=8)
-        tk.Button(left_frame, text="🔁 Tạo tên file mới",
-                  command=self.generate_new_filename, bg="lightblue", font=("Arial", 9)).pack(fill=tk.X, pady=2)
         tk.Button(left_frame, text="💾 Đổi tên file",
                   command=self.rename_file, bg="lightgreen", font=("Arial", 9)).pack(fill=tk.X, pady=2)
 
