@@ -8,12 +8,13 @@ a = Analysis(
     datas=[
         ('poppler-24.08.0', 'poppler-24.08.0'),
         ('tesseract-ocr', 'tesseract-ocr'),
+        ('assets', 'assets'),  # Include assets folder (logo.ico, logo.png)
     ],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=['torch', 'tensorflow', 'transformers', 'pandas', 'matplotlib', 'scipy', 'cv2', 'numpy'],  # Loại bỏ các thư viện không cần thiết
     noarchive=False,
     optimize=0,
 )
@@ -25,7 +26,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='pdf_gui',
+    name='OCR_PDF',  # Tên file .exe (không dấu để tránh lỗi trên Windows)
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

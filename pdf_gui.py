@@ -123,6 +123,18 @@ class PDFGuiApp:
                   command=self.select_folder, bg="orange", font=("Arial", 9)).pack(fill=tk.X, pady=8)
         tk.Button(left_frame, text="💾 Đổi tên file",
                   command=self.rename_file, bg="lightgreen", font=("Arial", 9)).pack(fill=tk.X, pady=2)
+        
+        # Signature ở cuối khung bên trái
+        signature_frame = tk.Frame(left_frame)
+        signature_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(20, 5), padx=5)
+        signature_lines = [
+            "Phát triển bởi: Nguyễn Nhật Long",
+            "Đơn vị: Đội CNTT - Phòng Tham mưu",
+            "Liên hệ: 0365 756 687"
+        ]
+        for line in signature_lines:
+            tk.Label(signature_frame, text=line, font=("Arial", 7), 
+                    fg="gray", anchor="w", justify=tk.LEFT).pack(fill=tk.X, pady=(0, 2))
 
         # ===== RIGHT =====
         right_frame = tk.Frame(main_paned)
