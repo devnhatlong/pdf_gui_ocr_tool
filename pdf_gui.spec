@@ -2,10 +2,13 @@
 
 
 a = Analysis(
-    ['D:\\Develop\\pdf_gui_ocr_tool\\pdf_gui.py'],
+    ['pdf_gui.py'],
     pathex=[],
     binaries=[],
-    datas=[('D:\\Develop\\pdf_gui_ocr_tool\\poppler-24.08.0', 'poppler-24.08.0')],
+    datas=[
+        ('poppler-24.08.0', 'poppler-24.08.0'),
+        ('tesseract-ocr', 'tesseract-ocr'),
+    ],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
