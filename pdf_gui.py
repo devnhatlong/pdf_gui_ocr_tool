@@ -13,11 +13,12 @@ import re
 class PDFGuiApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Xử lý File số hóa")
+        self.root.title("Phần mềm số hóa")
         self.root.geometry("1200x700")
         
-        # Set icon cho cửa sổ (nếu có file icon.ico)
-        icon_path = os.path.join(os.path.dirname(__file__), "assets", "icon.ico")
+        # Set icon cho cửa sổ (sử dụng logo.ico)
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        icon_path = os.path.join(base_dir, "assets", "logo.ico")
         if os.path.exists(icon_path):
             try:
                 self.root.iconbitmap(icon_path)
