@@ -243,8 +243,12 @@ def get_trial_info():
     days_used = (current_time - first_run) / 86400
     remaining_days = max(0, TRIAL_DAYS - days_used)
     
+    # Làm tròn lên để tránh trường hợp 0.998264 thành 0
+    # Nếu còn > 0 thì tính là ít nhất 1 ngày
+    remaining_days_int = int(remaining_days) if remaining_days >= 1.0 else (1 if remaining_days > 0 else 0)
+    
     return {
-        "remaining_days": int(remaining_days),
+        "remaining_days": remaining_days_int,
         "is_trial": remaining_days > 0
     }
 
