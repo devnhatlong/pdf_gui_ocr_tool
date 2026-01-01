@@ -78,7 +78,7 @@ class PDFGuiApp:
         tk.Label(frame_lv, text="Loại văn bản:", width=16, font=("Arial", 9), anchor="w").pack(side=tk.LEFT)
         self.loai_vb = ttk.Combobox(
             frame_lv,
-            values=["BC", "CV", "KH", "KL", "QĐ", "NQ", "TTr", "TB", "PA", "CTr"],
+            values=["BC", "CV", "KH", "KL", "QĐ", "NQ", "TTr", "TB", "PA", "CTr", "GM", "DS"],
             font=("Arial", 10),
             state="normal"  # Cho phép tự nhập
         )
@@ -291,6 +291,9 @@ class PDFGuiApp:
         # Tìm pattern "V/v" hoặc "Về việc" trong text gốc (có dấu)
         original_text = "\n".join(original_lines)
         
+        # Danh sách từ khóa cần loại bỏ khỏi trích yếu (tiêu đề, đầu thư, v.v.)
+        exclude_keywords = ["kính gửi", "giấy mời", "kế hoạch", "thông báo", "quyết định", "báo cáo", "nghị quyết"]
+
         # Tìm dòng chứa "V/v" hoặc "Về việc"
         vv_line_idx = None
         vv_prefix = ""
@@ -305,31 +308,40 @@ class PDFGuiApp:
                 break
         
         if vv_line_idx is not None:
-            # Lấy các dòng liên tiếp sau "V/v" cho đến khi gặp dòng dừng (trước "Kính gửi")
+            # Lấy các dòng liên tiếp sau "V/v" cho đến khi gặp dòng dừng
             trich_yeu_lines = []
-            stop_keywords = ["kính gửi", "về", "cơ quan"]
+            # Chỉ dừng khi gặp các từ khóa này ở đầu dòng (tiêu đề riêng, không phải trong nội dung V/v)
+            # Đặc biệt chú ý "kính gửi" - luôn dừng trước đó
+            stop_keywords = ["kính gửi", "giấy mời", "kế hoạch", "quyết định", "báo cáo", "nghị quyết", "cơ quan"]
+            stop_keywords_no_accents = [self.remove_accents(kw) for kw in stop_keywords]
             
             for i in range(vv_line_idx, min(vv_line_idx + 5, len(original_lines))):  # Tối đa 5 dòng
                 line = original_lines[i].strip()
                 if not line:
                     continue
                 
-                # Kiểm tra xem có phải dòng dừng không (đặc biệt là "Kính gửi")
-                line_lower = line.lower()
-                if any(kw in line_lower for kw in stop_keywords):
+                # Bỏ dấu để so sánh (xử lý lỗi OCR)
+                line_no_accents = self.remove_accents(line)
+                
+                # Kiểm tra xem có phải dòng dừng không - chỉ kiểm tra các từ khóa ở ĐẦU dòng
+                # Đây là các tiêu đề riêng biệt, không phải nội dung trong V/v
+                is_stop_line = False
+                for kw_no_accents in stop_keywords_no_accents:
+                    # Kiểm tra nếu dòng bắt đầu bằng từ khóa (có thể có khoảng trắng đầu)
+                    if re.match(r"^[\s]*" + re.escape(kw_no_accents), line_no_accents):
+                        is_stop_line = True
+                        break
+                
+                if is_stop_line:
+                    # Gặp dòng dừng (như "Kính gửi"), break ngay lập tức
                     break
                 
-                # Nếu là dòng đầu tiên (chứa V/v), lấy toàn bộ dòng
-                if i == vv_line_idx:
-                    trich_yeu_lines.append(line)
-                else:
-                    # Nếu dòng quá ngắn (< 5 ký tự) có thể là ký tự lẻ, bỏ qua
-                    if len(line) < 5:
-                        continue
-                    # Kiểm tra xem có phải là số hoặc ngày không (thường là thông tin khác)
-                    if re.match(r"^[\s]*(?:Số|Ngày)[\s:]", line, re.IGNORECASE):
-                        break
-                    trich_yeu_lines.append(line)
+                # Kiểm tra xem có phải là số hoặc ngày không (thường là thông tin khác, dừng lại)
+                if re.match(r"^[\s]*(?:so|ngay)[\s:]", line_no_accents):
+                    break
+                
+                # Lấy dòng này vào trích yếu (bao gồm cả dòng V/v và các dòng tiếp theo)
+                trich_yeu_lines.append(line)
             
             if trich_yeu_lines:
                 trich_yeu = " ".join(trich_yeu_lines)
@@ -341,21 +353,132 @@ class PDFGuiApp:
                 if trich_yeu and len(trich_yeu) >= 5:
                     result["trich_yeu"] = trich_yeu
         
-        # Nếu không tìm thấy "V/v", tìm dòng có nội dung ngắn sau ngày tháng
+        # Nếu không tìm thấy "V/v", tìm các từ khóa tiêu đề (thường viết hoa và in đậm)
         if not result["trich_yeu"]:
-            # Tìm dòng đầu tiên sau ngày tháng mà không phải là "Kính gửi" hoặc "Cơ quan"
-            for i, line in enumerate(original_lines):
+            # Danh sách từ khóa tiêu đề (so sánh không dấu để xử lý lỗi OCR)
+            title_keywords_original = [
+                "kính gửi", "giấy mời", "kế hoạch", "thông báo", "quyết định", 
+                "báo cáo", "nghị quyết", "phương án", "công văn", "kết luận", 
+                "tờ trình", "chương trình", "danh sách"
+            ]
+            # Tạo danh sách từ khóa không dấu để so sánh
+            title_keywords_no_accents = [self.remove_accents(kw) for kw in title_keywords_original]
+            
+            # Tìm dòng chứa từ khóa tiêu đề (có thể viết hoa hoàn toàn hoặc viết hoa chữ cái đầu)
+            title_line_idx = None
+            for idx, line in enumerate(original_lines):
                 line_clean = line.strip()
-                if not line_clean or len(line_clean) < 15:
+                if not line_clean:
                     continue
-                # Bỏ qua các dòng thông tin cơ bản
-                skip_keywords = ["kính gửi", "cơ quan", "số:", "ngày", "độc lập", "tự do", "hạnh phúc"]
-                if any(x in line_clean.lower() for x in skip_keywords):
-                    continue
-                # Lấy dòng có độ dài hợp lý (15-200 ký tự)
-                if 15 <= len(line_clean) <= 200:
-                    result["trich_yeu"] = line_clean
+                
+                # Bỏ dấu của dòng để so sánh (xử lý lỗi OCR)
+                line_no_accents = self.remove_accents(line_clean)
+                
+                # Kiểm tra xem dòng này có bắt đầu bằng một trong các từ khóa tiêu đề không
+                for kw_idx, kw_no_accents in enumerate(title_keywords_no_accents):
+                    # Kiểm tra nếu dòng bắt đầu bằng từ khóa (có thể có khoảng trắng đầu)
+                    kw_pattern = r"^[\s]*" + re.escape(kw_no_accents) + r"[\s:]+(.+)"
+                    match_kw = re.match(kw_pattern, line_no_accents)
+                    if match_kw:
+                        # Trường hợp: từ khóa + nội dung (ví dụ: "THÔNG BÁO: về việc...")
+                        # Tìm vị trí từ khóa trong dòng gốc để lấy phần sau
+                        kw_original = title_keywords_original[kw_idx]
+                        # Thử match với từ khóa gốc trước (có dấu đúng)
+                        match_original = re.search(r"^[\s]*" + re.escape(kw_original) + r"[\s:]+(.+)", line_clean, re.IGNORECASE)
+                        if match_original:
+                            result["trich_yeu"] = match_original.group(1).strip()
+                        else:
+                            # Nếu không match (do OCR sai dấu), tìm vị trí bằng cách so sánh không dấu
+                            # Tìm vị trí từ khóa trong dòng gốc bằng cách so sánh từng đoạn không dấu
+                            line_no_accents_lower = line_no_accents.lower()
+                            kw_start_pos = line_no_accents_lower.find(kw_no_accents)
+                            if kw_start_pos >= 0:
+                                # Tìm vị trí tương ứng trong dòng gốc
+                                # Đếm số ký tự không dấu từ đầu đến vị trí từ khóa
+                                char_count = 0
+                                original_pos = 0
+                                for i, char in enumerate(line_clean):
+                                    if char_count >= kw_start_pos:
+                                        original_pos = i
+                                        break
+                                    # Đếm ký tự (không tính dấu kết hợp)
+                                    if not unicodedata.combining(char):
+                                        char_count += 1
+                                
+                                # Tìm vị trí kết thúc từ khóa (sau dấu cách hoặc dấu :)
+                                content_start = original_pos + len(kw_original)  # Ước lượng
+                                # Tìm chính xác hơn bằng cách tìm dấu cách/dấu : sau từ khóa
+                                for i in range(original_pos, min(original_pos + len(kw_original) + 5, len(line_clean))):
+                                    if line_clean[i] in [':', ' ', '\t']:
+                                        # Tìm vị trí bắt đầu nội dung (sau các dấu cách/dấu :)
+                                        content_start = i + 1
+                                        while content_start < len(line_clean) and line_clean[content_start] in [' ', ':', '\t']:
+                                            content_start += 1
+                                        break
+                                
+                                if content_start < len(line_clean):
+                                    result["trich_yeu"] = line_clean[content_start:].strip()
+                                else:
+                                    # Fallback: lấy phần sau từ khóa từ dòng không dấu
+                                    result["trich_yeu"] = match_kw.group(1).strip()
+                            else:
+                                # Fallback: lấy phần sau từ khóa từ dòng không dấu
+                                result["trich_yeu"] = match_kw.group(1).strip()
+                        if result["trich_yeu"]:
+                            return result
+                    
+                    # Kiểm tra nếu dòng chỉ chứa từ khóa (tiêu đề riêng, không có nội dung sau)
+                    match_title_only = re.match(r"^[\s]*" + re.escape(kw_no_accents) + r"[\s:]*$", line_no_accents)
+                    if match_title_only:
+                        # Trường hợp: chỉ có từ khóa (ví dụ: "DANH SACH")
+                        # Đánh dấu dòng này là tiêu đề, sẽ lấy các dòng sau làm trích yếu
+                        title_line_idx = idx
+                        break
+                
+                if title_line_idx is not None:
                     break
+            
+            # Nếu tìm thấy dòng tiêu đề, lấy các dòng sau nó làm trích yếu
+            if title_line_idx is not None:
+                trich_yeu_lines = []
+                stop_keywords = ["kính gửi", "cơ quan", "số", "ngày"]
+                stop_keywords_no_accents = [self.remove_accents(kw) for kw in stop_keywords]
+                
+                # Lấy các dòng sau tiêu đề (bắt đầu từ dòng tiếp theo)
+                for i in range(title_line_idx + 1, min(title_line_idx + 5, len(original_lines))):
+                    line = original_lines[i].strip()
+                    if not line:
+                        continue
+                    
+                    # Bỏ dấu để so sánh (xử lý lỗi OCR)
+                    line_no_accents = self.remove_accents(line)
+                    
+                    # Kiểm tra xem có phải dòng dừng không
+                    is_stop_line = False
+                    for kw_no_accents in stop_keywords_no_accents:
+                        if re.match(r"^[\s]*" + re.escape(kw_no_accents), line_no_accents):
+                            is_stop_line = True
+                            break
+                    
+                    if is_stop_line:
+                        break
+                    
+                    # Kiểm tra xem có phải là số hoặc ngày không (so sánh không dấu)
+                    if re.match(r"^[\s]*(?:so|ngay)[\s:]", line_no_accents):
+                        break
+                    
+                    # Lấy dòng này vào trích yếu
+                    trich_yeu_lines.append(line)
+                
+                if trich_yeu_lines:
+                    trich_yeu = " ".join(trich_yeu_lines)
+                    # Loại bỏ khoảng trắng thừa
+                    trich_yeu = re.sub(r"\s+", " ", trich_yeu).strip()
+                    # Giới hạn độ dài (tối đa 250 ký tự)
+                    if len(trich_yeu) > 250:
+                        trich_yeu = trich_yeu[:247] + "..."
+                    if trich_yeu and len(trich_yeu) >= 5:
+                        result["trich_yeu"] = trich_yeu
 
         return result
 
