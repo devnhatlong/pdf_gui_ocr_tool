@@ -501,15 +501,29 @@ class PDFGuiApp:
         ngay_raw = self.get_entry_value("Ngày ban hành")
         ngay = ngay_raw.replace("/", "-")
         
-        # Xử lý trích yếu: bỏ dấu, viết hoa chữ cái đầu mỗi từ, sau đó bỏ khoảng trắng
+        # Xử lý trích yếu: bỏ dấu, chuyển lowercase, viết hoa chữ cái đầu, sau đó bỏ khoảng trắng và ký tự đặc biệt
         trich_yeu = self.get_entry_value("Trích yếu")
         if trich_yeu:
             # Bỏ dấu
-            trich_yeu = self.remove_accents(trich_yeu)
-            # Viết hoa chữ cái đầu mỗi từ
-            trich_yeu = trich_yeu.title()
-            # Bỏ khoảng trắng
-            mota = trich_yeu.replace(" ", "")
+            trich_yeu_no_accent = self.remove_accents(trich_yeu)
+            # Đảm bảo tất cả đều lowercase
+            trich_yeu_lower = trich_yeu_no_accent.lower()
+            # Viết hoa chữ cái đầu tiên của chuỗi
+            if trich_yeu_lower:
+                # Tìm chữ cái đầu tiên và viết hoa nó
+                result_chars = []
+                first_letter_capitalized = False
+                for char in trich_yeu_lower:
+                    if char.isalpha() and not first_letter_capitalized:
+                        result_chars.append(char.upper())
+                        first_letter_capitalized = True
+                    else:
+                        result_chars.append(char)
+                trich_yeu_with_capital = ''.join(result_chars)
+            else:
+                trich_yeu_with_capital = trich_yeu_lower
+            # Bỏ khoảng trắng và các ký tự không phải chữ/số (như /, :, -)
+            mota = re.sub(r'[^\w]', '', trich_yeu_with_capital)
         else:
             mota = ""
 
