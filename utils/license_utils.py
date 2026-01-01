@@ -10,7 +10,7 @@ from datetime import datetime, date
 
 # Cấu hình
 SECRET_KEY = b"CAT_LAMDONG_PRIVATE_KEY_2026"
-TRIAL_DAYS = 3  # Số ngày dùng thử
+TRIAL_DAYS = 0  # Số ngày dùng thử
 TRIAL_FILE = "trial.dat"
 LICENSE_FILE = "license.dat"
 
