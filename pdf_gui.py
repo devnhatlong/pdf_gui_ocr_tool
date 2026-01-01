@@ -1,9 +1,13 @@
 # === pdf_gui.py ===
 import tkinter as tk
-from tkinter import ttk, filedialog, Text
+from tkinter import ttk, filedialog, Text, messagebox
 from utils.file_ops import list_pdfs_in_folder
 from utils.pdf_utils import pdf_to_images
 from utils.ocr_engine import extract_text_from_image
+from utils.license_utils import (
+    get_machine_id, check_license, check_trial, get_trial_info,
+    verify_license_key, save_license, get_license_info
+)
 from PIL import Image, ImageTk
 import os
 import unicodedata
@@ -56,6 +60,13 @@ class PDFGuiApp:
         self.selected_folder = None
         self.tk_image = None
         self.current_file_path = None
+        self.is_licensed = False
+        
+        # Kiểm tra license/trial trước khi khởi động
+        if not self.check_license_and_trial():
+            # Nếu không có license và hết trial, hiển thị dialog và thoát
+            return
+        
         self.setup_ui()
 
     # ==================================================
@@ -189,6 +200,224 @@ class PDFGuiApp:
         )
         self.ocr_text.pack(fill=tk.BOTH, expand=True)
         ocr_scroll.config(command=self.ocr_text.yview)
+
+    # ==================================================
+    # LICENSE & TRIAL
+    # ==================================================
+    def check_license_and_trial(self):
+        """Kiểm tra license hoặc trial. Trả về True nếu có quyền sử dụng"""
+        # Kiểm tra license trước
+        if check_license():
+            self.is_licensed = True
+            return True
+        
+        # Kiểm tra trial
+        if check_trial():
+            trial_info = get_trial_info()
+            remaining = trial_info.get("remaining_days", 0)
+            if remaining > 0:
+                # Đang trong thời gian trial
+                self.show_trial_notification(remaining)
+                return True
+        
+        # Không có license và hết trial, hiển thị dialog nhập license
+        self.show_license_dialog()
+        # Sau khi đóng dialog, kiểm tra lại
+        if check_license():
+            self.is_licensed = True
+            return True
+        
+        # Nếu vẫn không có license, đóng app
+        self.root.destroy()
+        return False
+    
+    def show_trial_notification(self, remaining_days):
+        """Hiển thị thông báo về thời gian trial còn lại"""
+        messagebox.showinfo(
+            "Chế độ dùng thử",
+            f"Bạn đang sử dụng phiên bản dùng thử.\n"
+            f"Còn lại {remaining_days} ngày.\n\n"
+            f"Vui lòng nhập License Key để tiếp tục sử dụng sau khi hết hạn.",
+            parent=self.root
+        )
+    
+    def show_license_dialog(self):
+        """Hiển thị dialog nhập License Key"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Kích hoạt bản quyền")
+        dialog.geometry("600x400")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()  # Modal dialog
+        
+        # Set icon
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        icon_path = os.path.join(base_dir, "assets", "logo.ico")
+        if os.path.exists(icon_path):
+            try:
+                dialog.iconbitmap(icon_path)
+            except:
+                pass
+        
+        # Frame chính
+        main_frame = tk.Frame(dialog, padx=20, pady=20)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Tiêu đề
+        title_label = tk.Label(
+            main_frame,
+            text="Kích hoạt bản quyền",
+            font=("Arial", 16, "bold"),
+            pady=10
+        )
+        title_label.pack()
+        
+        # Machine ID
+        machine_id_frame = tk.Frame(main_frame)
+        machine_id_frame.pack(fill=tk.X, pady=10)
+        
+        tk.Label(
+            machine_id_frame,
+            text="Mã máy của bạn:",
+            font=("Arial", 10, "bold"),
+            anchor="w"
+        ).pack(fill=tk.X, pady=(0, 5))
+        
+        machine_id = get_machine_id()
+        
+        # Frame cho Machine ID và nút Copy
+        machine_id_input_frame = tk.Frame(machine_id_frame)
+        machine_id_input_frame.pack(fill=tk.X)
+        
+        machine_entry = tk.Entry(
+            machine_id_input_frame,
+            width=60,
+            font=("Courier", 9),
+            state="readonly"
+        )
+        machine_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        machine_entry.config(state="normal")
+        machine_entry.insert(0, machine_id)
+        machine_entry.config(state="readonly")
+        
+        # Nút Copy Machine ID
+        def copy_machine_id():
+            dialog.clipboard_clear()
+            dialog.clipboard_append(machine_id)
+            status_label.config(text="✅ Đã copy Machine ID vào clipboard!", fg="green")
+            dialog.after(2000, lambda: status_label.config(text=""))
+        
+        tk.Button(
+            machine_id_input_frame,
+            text="📋 Copy",
+            command=copy_machine_id,
+            font=("Arial", 9),
+            padx=10
+        ).pack(side=tk.LEFT, padx=(5, 0))
+        
+        # Hướng dẫn
+        info_text = (
+            "Vui lòng gửi Mã máy trên cho người quản trị để nhận License Key.\n"
+            "Sau đó nhập License Key vào ô bên dưới để kích hoạt."
+        )
+        tk.Label(
+            main_frame,
+            text=info_text,
+            font=("Arial", 9),
+            justify=tk.LEFT,
+            fg="gray",
+            wraplength=550
+        ).pack(fill=tk.X, pady=10)
+        
+        # License Key input
+        license_frame = tk.Frame(main_frame)
+        license_frame.pack(fill=tk.X, pady=10)
+        
+        tk.Label(
+            license_frame,
+            text="Nhập License Key:",
+            font=("Arial", 10, "bold"),
+            anchor="w"
+        ).pack(fill=tk.X, pady=(0, 5))
+        
+        license_entry = tk.Entry(
+            license_frame,
+            width=70,
+            font=("Courier", 9)
+        )
+        license_entry.pack(fill=tk.X)
+        license_entry.focus()
+        
+        # Status label
+        status_label = tk.Label(
+            main_frame,
+            text="",
+            font=("Arial", 9),
+            fg="red"
+        )
+        status_label.pack(fill=tk.X, pady=5)
+        
+        # Nút kích hoạt
+        def activate_license():
+            license_key = license_entry.get().strip()
+            if not license_key:
+                status_label.config(text="❌ Vui lòng nhập License Key", fg="red")
+                return
+            
+            # Kiểm tra license key
+            is_valid, message = verify_license_key(license_key)
+            if is_valid:
+                # Lưu license
+                if save_license(license_key):
+                    status_label.config(text="✅ Kích hoạt thành công!", fg="green")
+                    dialog.after(1000, dialog.destroy)
+                else:
+                    status_label.config(text="❌ Lỗi khi lưu license", fg="red")
+            else:
+                status_label.config(text=f"❌ {message}", fg="red")
+        
+        def on_enter(event):
+            activate_license()
+        
+        license_entry.bind("<Return>", on_enter)
+        
+        button_frame = tk.Frame(main_frame)
+        button_frame.pack(fill=tk.X, pady=20)
+        
+        tk.Button(
+            button_frame,
+            text="Kích hoạt",
+            command=activate_license,
+            bg="green",
+            fg="white",
+            font=("Arial", 11, "bold"),
+            padx=20,
+            pady=5
+        ).pack(side=tk.RIGHT)
+        
+        tk.Button(
+            button_frame,
+            text="Thoát",
+            command=dialog.destroy,
+            font=("Arial", 10),
+            padx=20,
+            pady=5
+        ).pack(side=tk.RIGHT, padx=(0, 10))
+        
+        # Thông tin trial (nếu có)
+        trial_info = get_trial_info()
+        if trial_info.get("remaining_days", 0) <= 0:
+            trial_label = tk.Label(
+                main_frame,
+                text="⏰ Thời gian dùng thử đã hết. Vui lòng nhập License Key.",
+                font=("Arial", 9),
+                fg="orange",
+                wraplength=550
+            )
+            trial_label.pack(fill=tk.X, pady=10)
+        
+        # Chờ dialog đóng
+        dialog.wait_window()
 
     # ==================================================
     # FILE HANDLING
