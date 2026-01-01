@@ -246,6 +246,9 @@ class PDFGuiApp:
             entry.delete(0, tk.END)
             entry.insert(0, meta["trich_yeu"])
             entry.config(fg="black")
+        if meta["loai_van_ban"]:
+            # Tự động chọn loại văn bản
+            self.loai_vb.set(meta["loai_van_ban"])
 
         self.generate_new_filename()
 
@@ -257,9 +260,25 @@ class PDFGuiApp:
         return "".join(c for c in s if not unicodedata.combining(c)).lower()
 
     def extract_metadata_from_ocr(self, text):
-        result = {"so_ky_hieu": "", "ngay_ban_hanh": "", "trich_yeu": ""}
+        result = {"so_ky_hieu": "", "ngay_ban_hanh": "", "trich_yeu": "", "loai_van_ban": ""}
         if not text:
             return result
+        
+        # Mapping từ khóa tiêu đề sang loại văn bản
+        keyword_to_loai = {
+            "báo cáo": "BC",
+            "công văn": "CV",
+            "kế hoạch": "KH",
+            "kết luận": "KL",
+            "quyết định": "QĐ",
+            "nghị quyết": "NQ",
+            "tờ trình": "TTr",
+            "thông báo": "TB",
+            "phương án": "PA",
+            "chương trình": "CTr",
+            "giấy mời": "GM",
+            "danh sách": "DS"
+        }
 
         lines = text.splitlines()[:20]  # Tăng lên 20 dòng để lấy được trích yếu
         original_lines = lines  # Giữ nguyên để lấy text gốc (có dấu)
@@ -366,6 +385,7 @@ class PDFGuiApp:
             
             # Tìm dòng chứa từ khóa tiêu đề (có thể viết hoa hoàn toàn hoặc viết hoa chữ cái đầu)
             title_line_idx = None
+            matched_keyword_idx = None  # Lưu index của từ khóa đã match
             for idx, line in enumerate(original_lines):
                 line_clean = line.strip()
                 if not line_clean:
@@ -425,6 +445,10 @@ class PDFGuiApp:
                                 # Fallback: lấy phần sau từ khóa từ dòng không dấu
                                 result["trich_yeu"] = match_kw.group(1).strip()
                         if result["trich_yeu"]:
+                            # Tìm loại văn bản từ mapping
+                            kw_original = title_keywords_original[kw_idx]
+                            if kw_original in keyword_to_loai:
+                                result["loai_van_ban"] = keyword_to_loai[kw_original]
                             return result
                     
                     # Kiểm tra nếu dòng chỉ chứa từ khóa (tiêu đề riêng, không có nội dung sau)
@@ -433,10 +457,17 @@ class PDFGuiApp:
                         # Trường hợp: chỉ có từ khóa (ví dụ: "DANH SACH")
                         # Đánh dấu dòng này là tiêu đề, sẽ lấy các dòng sau làm trích yếu
                         title_line_idx = idx
+                        matched_keyword_idx = kw_idx
                         break
                 
                 if title_line_idx is not None:
                     break
+            
+            # Nếu tìm thấy từ khóa tiêu đề, set loại văn bản
+            if matched_keyword_idx is not None:
+                kw_original = title_keywords_original[matched_keyword_idx]
+                if kw_original in keyword_to_loai:
+                    result["loai_van_ban"] = keyword_to_loai[kw_original]
             
             # Nếu tìm thấy dòng tiêu đề, lấy các dòng sau nó làm trích yếu
             if title_line_idx is not None:
@@ -501,27 +532,35 @@ class PDFGuiApp:
         ngay_raw = self.get_entry_value("Ngày ban hành")
         ngay = ngay_raw.replace("/", "-")
         
-        # Xử lý trích yếu: bỏ dấu, chuyển lowercase, viết hoa chữ cái đầu, sau đó bỏ khoảng trắng và ký tự đặc biệt
+        # Xử lý trích yếu: bỏ dấu, chuyển lowercase, viết hoa chữ cái đầu (hoặc Title Case nếu không có loại văn bản), sau đó bỏ khoảng trắng và ký tự đặc biệt
         trich_yeu = self.get_entry_value("Trích yếu")
         if trich_yeu:
             # Bỏ dấu
             trich_yeu_no_accent = self.remove_accents(trich_yeu)
             # Đảm bảo tất cả đều lowercase
             trich_yeu_lower = trich_yeu_no_accent.lower()
-            # Viết hoa chữ cái đầu tiên của chuỗi
-            if trich_yeu_lower:
-                # Tìm chữ cái đầu tiên và viết hoa nó
-                result_chars = []
-                first_letter_capitalized = False
-                for char in trich_yeu_lower:
-                    if char.isalpha() and not first_letter_capitalized:
-                        result_chars.append(char.upper())
-                        first_letter_capitalized = True
-                    else:
-                        result_chars.append(char)
-                trich_yeu_with_capital = ''.join(result_chars)
+            
+            # Nếu có loại văn bản: viết hoa chữ cái đầu tiên
+            # Nếu không có loại văn bản: viết hoa chữ cái đầu mỗi từ (Title Case)
+            if loai:
+                # Viết hoa chữ cái đầu tiên của chuỗi
+                if trich_yeu_lower:
+                    # Tìm chữ cái đầu tiên và viết hoa nó
+                    result_chars = []
+                    first_letter_capitalized = False
+                    for char in trich_yeu_lower:
+                        if char.isalpha() and not first_letter_capitalized:
+                            result_chars.append(char.upper())
+                            first_letter_capitalized = True
+                        else:
+                            result_chars.append(char)
+                    trich_yeu_with_capital = ''.join(result_chars)
+                else:
+                    trich_yeu_with_capital = trich_yeu_lower
             else:
-                trich_yeu_with_capital = trich_yeu_lower
+                # Không có loại văn bản: viết hoa chữ cái đầu mỗi từ (Title Case)
+                trich_yeu_with_capital = trich_yeu_lower.title()
+            
             # Bỏ khoảng trắng và các ký tự không phải chữ/số (như /, :, -)
             mota = re.sub(r'[^\w]', '', trich_yeu_with_capital)
         else:
