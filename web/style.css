@@ -8,7 +8,8 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .app{height:100vh;min-height:650px;display:flex;overflow:hidden}
 .sidebar{width:249px;background:#fff;border-right:1px solid var(--line);display:flex;flex-direction:column;flex-shrink:0;padding:20px 12px}
 .logo{display:flex;gap:10px;align-items:center;padding:4px 10px 22px}
-.logoicon{background:linear-gradient(135deg,#1362f1,#6ea7ff);border-radius:13px;color:#fff;width:42px;height:42px;display:grid;place-items:center;font-size:23px;box-shadow:0 6px 15px #2164eb36}
+.logoicon{width:42px;height:42px;flex-shrink:0}
+.logoicon img,.avatar img{display:block;width:100%;height:100%;object-fit:contain}
 .logo strong{font-size:17px}
 .logo small{display:block;color:var(--muted);font-size:11px;margin-top:3px}
 .navtitle{color:#9aa6b9;font-size:10px;letter-spacing:1.5px;font-weight:800;padding:18px 12px 9px}
@@ -28,7 +29,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .bread strong{color:#1a2d49}
 .topright{display:flex;align-items:center;gap:13px;color:#8492a8}
 .pill{border:1px solid #dce5f1;border-radius:100px;padding:7px 11px;color:#5b6680;background:#fff;font-size:11px;font-weight:700}
-.avatar{background:#e6edff;color:var(--blue);border-radius:50%;width:31px;height:31px;display:grid;place-items:center;font-weight:800}
+.avatar{width:31px;height:31px;flex-shrink:0;display:grid;place-items:center}
 .content{padding:26px 29px;overflow:auto;flex:1}
 .page{display:none}
 .page.active{display:block}
@@ -233,7 +234,6 @@ body.dark .docgroup:hover,body.dark .layoutitem:hover{background:#1b2740}body.da
 .ic{width:1.15em;height:1.15em;flex-shrink:0;vertical-align:-0.2em;display:inline-block}
 .btn .ic,.pill .ic,.tab .ic{width:16px;height:16px}
 .nav .ico .ic{width:19px;height:19px;vertical-align:middle}
-.logoicon .ic{width:24px;height:24px;color:#fff}
 .metric .emoji{display:inline-flex;width:34px;height:34px;border-radius:10px;background:var(--blue2);color:var(--blue);align-items:center;justify-content:center;margin:0 8px 0 0;vertical-align:middle}
 .metric .emoji .ic{width:18px;height:18px}
 .cardicon{width:46px;height:46px;border-radius:13px;background:var(--blue2);color:var(--blue);display:grid;place-items:center}

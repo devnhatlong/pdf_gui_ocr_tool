@@ -10,7 +10,7 @@ from PyInstaller.utils.hooks import collect_all, copy_metadata
 
 datas = [
     ('tesseract-ocr', 'tesseract-ocr'),
-    ('assets', 'assets'),  # Include assets folder (logo.ico, logo.png)
+    ('assets/logo.ico', 'assets'),  # Icon Windows; logo giao dien nam trong web/assets
     ('web', 'web'),        # giao diện HTML/CSS/JS
 ]
 binaries = []
