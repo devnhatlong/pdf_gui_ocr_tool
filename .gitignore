@@ -43,8 +43,12 @@ tmp/
 # === Jupyter notebook checkpoints (if any) ===
 .ipynb_checkpoints/
 
+# === Model OCR (~3 GB, tải bằng download_models.py) ===
+models/
+
 # === OCR output / intermediate files ===
 *.txt
+!requirements.txt
 ocr_output/
 
 # === PDF preview images (if temporarily saved) ===

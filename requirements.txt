@@ -1,0 +1,28 @@
+# Cài đặt (Python 3.12, Windows):
+#   python -m venv .venv
+#   .venv\Scripts\python.exe -m pip install -r requirements.txt
+#   .venv\Scripts\python.exe -m pip install --no-deps vietocr==0.3.13
+#   .venv\Scripts\python.exe download_models.py        (tải model 1 lần, cần Internet)
+#
+# VietOCR phải cài --no-deps: gói này ghim einops==0.2.0, bản quá cũ khiến PaddleOCR-VL lỗi
+# "Tensor type unknown to einops". Các thư viện VietOCR thật sự cần khi chạy đã liệt kê bên dưới.
+
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+pillow
+pytesseract
+pdf2image
+
+# PaddlePaddle 3.3.x lỗi oneDNN trên CPU (ConvertPirAttribute2RuntimeAttribute) -> dùng 3.2.2.
+# Máy có GPU NVIDIA: thay bằng paddlepaddle-gpu==3.2.2 theo hướng dẫn tại paddlepaddle.org.cn
+paddlepaddle==3.2.2
+paddleocr[doc-parser]==3.7.0
+
+# VietOCR (bản CPU của PyTorch)
+torch==2.15.0+cpu
+torchvision==0.29.2+cpu
+einops>=0.8
+gdown==4.4.0
+pyyaml
+requests
+setuptools<81   # gdown 4.4 cần pkg_resources
