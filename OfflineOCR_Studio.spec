@@ -1,24 +1,24 @@
 # -*- mode: python ; coding: utf-8 -*-
-# Build:  .venv\Scripts\pyinstaller.exe pdf_gui.spec --noconfirm
-# Kết quả: dist\OCR_PDF\OCR_PDF.exe (dạng thư mục — Paddle + PyTorch quá nặng để gói 1 file,
+# Build:  .venv\Scripts\pyinstaller.exe OfflineOCR_Studio.spec --noconfirm
+# Kết quả: dist\OfflineOCR_Studio\OfflineOCR_Studio.exe (dạng thư mục - Paddle + PyTorch quá nặng để gói 1 file,
 # mỗi lần mở sẽ phải giải nén ~1.5 GB).
-# Sau khi build: copy thư mục models\ (tải bằng download_models.py) vào dist\OCR_PDF\models\
+# Sau khi build: copy thư mục models\ (tải bằng download_models.py) vào dist\OfflineOCR_Studio\models\
 
 from importlib.metadata import distributions
 
 from PyInstaller.utils.hooks import collect_all, copy_metadata
 
 datas = [
-    ('poppler-24.08.0', 'poppler-24.08.0'),
     ('tesseract-ocr', 'tesseract-ocr'),
     ('assets', 'assets'),  # Include assets folder (logo.ico, logo.png)
+    ('web', 'web'),        # giao diện HTML/CSS/JS
 ]
 binaries = []
 hiddenimports = []
 
 # Paddle / PaddleX / PaddleOCR / VietOCR nạp module và file cấu hình (.yaml) động.
 # torchvision cần đủ thư viện C (_C.pyd), thiếu sẽ lỗi "operator torchvision::nms does not exist".
-for pkg in ('paddle', 'paddlex', 'paddleocr', 'vietocr', 'torch', 'torchvision'):
+for pkg in ('paddle', 'paddlex', 'paddleocr', 'vietocr', 'torch', 'torchvision', 'webview', 'pypdfium2', 'reportlab', 'docx'):
     d, b, h = collect_all(pkg)
     datas += d
     binaries += b
@@ -35,7 +35,7 @@ for dist in distributions():
 datas = [(src, dst) for src, dst in datas if not dst.replace('\\', '/').startswith('paddle/include')]
 
 a = Analysis(
-    ['pdf_gui.py'],
+    ['app.py'],
     pathex=[],
     binaries=binaries,
     datas=datas,
@@ -54,7 +54,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='OCR_PDF',  # Tên file .exe (không dấu để tránh lỗi trên Windows)
+    name='OfflineOCR_Studio',  # Tên file .exe (không dấu để tránh lỗi trên Windows)
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -73,5 +73,5 @@ coll = COLLECT(
     a.datas,
     strip=False,
     upx=False,
-    name='OCR_PDF',
+    name='OfflineOCR_Studio',
 )

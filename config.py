@@ -1,11 +1,8 @@
-DPI = 200  # Giảm từ 300 xuống 200 để OCR nhanh hơn, vẫn đủ chất lượng
-LANG = "vie+eng"
-TEMP_IMAGE_FOLDER = "data/temp_images"
+LANG = "vie+eng"   # ngôn ngữ Tesseract (chỉ dùng khi chưa có model PaddleOCR)
 
 import os
 import sys
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-POPPLER_PATH = os.path.join(BASE_DIR, "poppler-24.08.0", "Library", "bin")
 
 # Tesseract path - ưu tiên dùng local, nếu không có thì dùng system path
 TESSERACT_LOCAL = os.path.join(BASE_DIR, "tesseract-ocr", "tesseract.exe")
@@ -23,7 +20,7 @@ elif os.path.exists(TESSERACT_SYSTEM):
 # ==================================================
 # MODEL OCR (chạy offline)
 # ==================================================
-# Thư mục models/ đặt cạnh file .exe (hoặc cạnh pdf_gui.py khi chạy bằng Python),
+# Thư mục models/ đặt cạnh file .exe (hoặc cạnh app.py khi chạy bằng Python),
 # không nhúng vào .exe để khỏi giải nén vài GB mỗi lần mở phần mềm.
 APP_DIR = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else BASE_DIR
 MODELS_DIR = os.path.join(APP_DIR, "models")
@@ -31,6 +28,24 @@ PADDLEX_HOME = os.path.join(MODELS_DIR, "paddlex")     # model Paddle nằm ở 
 VIETOCR_DIR = os.path.join(MODELS_DIR, "vietocr")
 VIETOCR_CONFIG = os.path.join(VIETOCR_DIR, "vgg_transformer.yml")
 VIETOCR_WEIGHTS = os.path.join(VIETOCR_DIR, "vgg_transformer.pth")
+
+# ==================================================
+# ỨNG DỤNG
+# ==================================================
+APP_NAME = "OfflineOCR Studio"
+APP_VERSION = "2.0"
+AUTHOR_LINES = [
+    ("Phát triển bởi", "Nguyễn Nhật Long"),
+    ("Đơn vị", "Đội CNTT - Phòng Tham mưu"),
+    ("Liên hệ", "0365 756 687"),
+]
+WEB_DIR = os.path.join(BASE_DIR, "web")
+DATA_DIR = os.path.join(APP_DIR, "data")                 # lịch sử, cấu hình, bản nháp, file tạm
+WORKSPACE_DIR = os.path.join(DATA_DIR, "workspace")       # ảnh trang đã dựng, file PDF tạm
+SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
+HISTORY_DB = os.path.join(DATA_DIR, "history.db")
+DEFAULT_OUTPUT_DIR = os.path.join(os.path.expanduser("~"), "Documents", "OfflineOCR_Output")
+SYSTEM_FONT = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts", "arial.ttf")  # lớp chữ PDF
 
 OCR_LANG = "vi"
 PPOCR_DET_MODEL = "PP-OCRv6_medium_det"

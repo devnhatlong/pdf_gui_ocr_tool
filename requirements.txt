@@ -11,7 +11,15 @@
 
 pillow
 pytesseract
-pdf2image
+
+# Giao diện (Edge WebView2) & xử lý PDF / xuất file
+pywebview==6.2.1
+pypdfium2==5.14.0
+pypdf==6.21.4
+python-docx
+openpyxl
+reportlab
+psutil
 
 # PaddlePaddle 3.3.x lỗi oneDNN trên CPU (ConvertPirAttribute2RuntimeAttribute) -> dùng 3.2.2.
 # Máy có GPU NVIDIA: thay bằng paddlepaddle-gpu==3.2.2 theo hướng dẫn tại paddlepaddle.org.cn
