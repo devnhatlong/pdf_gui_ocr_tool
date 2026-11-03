@@ -43,22 +43,24 @@ def download_vietocr():
     import yaml
     from vietocr.tool.utils import download_config
 
-    os.makedirs(config.VIETOCR_DIR, exist_ok=True)
+    target = config.VIETOCR_DIRS[-1]          # models/vietocr cạnh app.py (được đóng gói vào bộ cài)
+    weights = os.path.join(target, config.VIETOCR_WEIGHTS_NAME)
+    os.makedirs(target, exist_ok=True)
     cfg = download_config("base.yml")
     cfg.update(download_config("vgg-transformer.yml"))
     url = cfg["weights"]
-    with open(config.VIETOCR_CONFIG, "w", encoding="utf-8") as f:
+    with open(os.path.join(target, config.VIETOCR_CONFIG_NAME), "w", encoding="utf-8") as f:
         yaml.dump(cfg, f, default_flow_style=False, allow_unicode=True)
 
-    if not os.path.exists(config.VIETOCR_WEIGHTS):
+    if not os.path.exists(weights):
         print(f"  Tải trọng số: {url}")
-        tmp = config.VIETOCR_WEIGHTS + ".part"
+        tmp = weights + ".part"
         with requests.get(url, stream=True, timeout=60) as r:
             r.raise_for_status()
             with open(tmp, "wb") as f:
                 for chunk in r.iter_content(chunk_size=1 << 20):
                     f.write(chunk)
-        os.replace(tmp, config.VIETOCR_WEIGHTS)
+        os.replace(tmp, weights)
     ocr_engine.VietRecognizer()  # kiểm tra nạp được từ file cục bộ
 
 

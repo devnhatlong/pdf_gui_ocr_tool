@@ -891,18 +891,20 @@ class Api:
             return {"cancelled": True}
         name = os.path.basename(os.path.normpath(folder))
         files = os.listdir(folder)
+        # Model nhập thêm lưu ở thư mục người dùng (thư mục cài đặt trong Program Files chỉ đọc)
         if any(f.endswith(".pth") for f in files) and any(f.endswith((".yml", ".yaml")) for f in files):
-            os.makedirs(config.VIETOCR_DIR, exist_ok=True)
+            target = config.VIETOCR_DIRS[0]
+            os.makedirs(target, exist_ok=True)
             pth = next(f for f in files if f.endswith(".pth"))
             yml = next(f for f in files if f.endswith((".yml", ".yaml")))
-            shutil.copy2(os.path.join(folder, pth), config.VIETOCR_WEIGHTS)
-            shutil.copy2(os.path.join(folder, yml), config.VIETOCR_CONFIG)
+            shutil.copy2(os.path.join(folder, pth), os.path.join(target, config.VIETOCR_WEIGHTS_NAME))
+            shutil.copy2(os.path.join(folder, yml), os.path.join(target, config.VIETOCR_CONFIG_NAME))
             return {"ok": True, "message": "Đã nhập model VietOCR"}
         if not any(f in files for f in ("inference.yml", "config.json")):
             return {"ok": False, "message": "Thư mục không phải model PaddleX (thiếu inference.yml / config.json)"}
-        dst = os.path.join(config.PADDLEX_HOME, "official_models", name)
-        if os.path.exists(dst):
+        if config.find_paddlex_model(name):
             return {"ok": False, "message": f"Đã có model {name}"}
+        dst = os.path.join(config.PADDLEX_MODEL_DIRS[0], name)
         shutil.copytree(folder, dst)
         return {"ok": True, "message": f"Đã nhập model {name}"}
 

@@ -37,8 +37,10 @@ def selftest(path):
     except Exception:
         import traceback
         lines.append("LỖI:\n" + traceback.format_exc())
-    os.makedirs(config.APP_DIR, exist_ok=True)
-    with open(os.path.join(config.APP_DIR, "selftest.txt"), "w", encoding="utf-8") as f:
+    os.makedirs(config.DATA_DIR, exist_ok=True)
+    out = os.path.join(config.DATA_DIR, "selftest.txt")
+    print(f"Kết quả kiểm tra: {out}")
+    with open(out, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
 
 

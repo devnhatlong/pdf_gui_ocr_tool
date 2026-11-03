@@ -31,8 +31,18 @@ for dist in distributions():
     except Exception:
         pass
 
-# Bỏ header C++ của Paddle (chỉ dùng khi biên dịch extension, nặng và đường dẫn rất dài)
-datas = [(src, dst) for src, dst in datas if not dst.replace('\\', '/').startswith('paddle/include')]
+# Bỏ header C++ và thư viện tĩnh (.lib/.a) của Paddle / PyTorch: chỉ dùng khi biên dịch extension,
+# nặng (~90 MB) và có đường dẫn rất dài (vượt 260 ký tự khi cài vào thư mục sâu -> bộ cài báo lỗi).
+DEV_ONLY_DIRS = ('paddle/include', 'torch/include')
+
+
+def _runtime_file(src, dst):
+    dst = dst.replace('\\', '/')
+    return not dst.startswith(DEV_ONLY_DIRS) and not src.lower().endswith(('.lib', '.a'))
+
+
+datas = [(src, dst) for src, dst in datas if _runtime_file(src, dst)]
+binaries = [(src, dst) for src, dst in binaries if _runtime_file(src, dst)]
 
 a = Analysis(
     ['app.py'],

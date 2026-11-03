@@ -46,6 +46,10 @@ tmp/
 # === Model OCR (~3 GB, tải bằng download_models.py) ===
 models/
 
+# === Bộ cài (build_installer.ps1) ===
+installer_output/
+installer/redist/
+
 # === OCR output / intermediate files ===
 *.txt
 !requirements.txt

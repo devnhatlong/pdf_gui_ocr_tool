@@ -20,14 +20,37 @@ elif os.path.exists(TESSERACT_SYSTEM):
 # ==================================================
 # MODEL OCR (chạy offline)
 # ==================================================
-# Thư mục models/ đặt cạnh file .exe (hoặc cạnh app.py khi chạy bằng Python),
-# không nhúng vào .exe để khỏi giải nén vài GB mỗi lần mở phần mềm.
-APP_DIR = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else BASE_DIR
-MODELS_DIR = os.path.join(APP_DIR, "models")
-PADDLEX_HOME = os.path.join(MODELS_DIR, "paddlex")     # model Paddle nằm ở paddlex/official_models/<tên>
-VIETOCR_DIR = os.path.join(MODELS_DIR, "vietocr")
-VIETOCR_CONFIG = os.path.join(VIETOCR_DIR, "vgg_transformer.yml")
-VIETOCR_WEIGHTS = os.path.join(VIETOCR_DIR, "vgg_transformer.pth")
+# Thư mục models/ đặt cạnh file .exe (hoặc cạnh app.py khi chạy bằng Python) — bộ cài chép sẵn vào đây.
+# Khi cài vào Program Files thư mục này CHỈ ĐỌC; mọi thứ cần ghi (dữ liệu, bộ đệm PaddleX, model nhập thêm)
+# nằm ở USER_DIR = %LOCALAPPDATA%\OfflineOCR Studio. Chạy từ mã nguồn thì USER_DIR là thư mục dự án.
+FROZEN = getattr(sys, "frozen", False)
+APP_DIR = os.path.dirname(sys.executable) if FROZEN else BASE_DIR
+USER_DIR = (os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "OfflineOCR Studio")
+            if FROZEN else BASE_DIR)
+MODELS_DIR = os.path.join(APP_DIR, "models")                         # model đi kèm bộ cài (chỉ đọc)
+USER_MODELS_DIR = os.path.join(USER_DIR, "models")                   # model nhập thêm từ màn hình Quản lý mô hình
+PADDLEX_MODEL_DIRS = [os.path.join(d, "paddlex", "official_models")  # tìm model Paddle theo thứ tự này
+                      for d in dict.fromkeys([USER_MODELS_DIR, MODELS_DIR])]
+VIETOCR_DIRS = [os.path.join(d, "vietocr") for d in dict.fromkeys([USER_MODELS_DIR, MODELS_DIR])]
+VIETOCR_CONFIG_NAME = "vgg_transformer.yml"
+VIETOCR_WEIGHTS_NAME = "vgg_transformer.pth"
+
+
+def find_paddlex_model(name):
+    """Thư mục model PaddleX (ưu tiên model người dùng nhập thêm), hoặc None nếu chưa có."""
+    for root in PADDLEX_MODEL_DIRS:
+        path = os.path.join(root, name)
+        if os.path.isdir(path):
+            return path
+    return None
+
+
+def vietocr_dir():
+    """Thư mục VietOCR có đủ config + trọng số, hoặc None."""
+    for d in VIETOCR_DIRS:
+        if os.path.exists(os.path.join(d, VIETOCR_CONFIG_NAME)) and os.path.exists(os.path.join(d, VIETOCR_WEIGHTS_NAME)):
+            return d
+    return None
 
 # ==================================================
 # ỨNG DỤNG
@@ -40,7 +63,9 @@ AUTHOR_LINES = [
     ("Liên hệ", "0365 756 687"),
 ]
 WEB_DIR = os.path.join(BASE_DIR, "web")
-DATA_DIR = os.path.join(APP_DIR, "data")                 # lịch sử, cấu hình, bản nháp, file tạm
+DATA_DIR = os.path.join(USER_DIR, "data")                # lịch sử, cấu hình, bản quyền, bản nháp, file tạm
+LICENSE_FILE = os.path.join(DATA_DIR, "license.dat")
+PADDLEX_CACHE = os.path.join(DATA_DIR, "paddlex_cache")   # file khóa / bộ đệm PaddleX (phải ghi được)
 WORKSPACE_DIR = os.path.join(DATA_DIR, "workspace")       # ảnh trang đã dựng, file PDF tạm
 SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
 HISTORY_DB = os.path.join(DATA_DIR, "history.db")
@@ -55,9 +80,11 @@ VIETOCR_MIN_SCORE = 0.90   # Dòng PP-OCRv6 đọc với độ tin cậy thấp 
 
 
 def apply_model_env(offline=True):
-    """Gọi TRƯỚC khi import paddleocr/paddlex: trỏ kho model về thư mục models/ của phần mềm.
+    """Gọi TRƯỚC khi import paddleocr/paddlex. Bộ đệm/khóa PaddleX ghi vào PADDLEX_CACHE (ghi được);
+    nơi tìm model được trỏ về models/ bằng utils.ocr_engine.patch_model_dirs() sau khi import.
     offline=True: không kiểm tra/kết nối máy chủ model, không gọi HuggingFace."""
-    os.environ["PADDLE_PDX_CACHE_HOME"] = PADDLEX_HOME
+    os.makedirs(PADDLEX_CACHE, exist_ok=True)
+    os.environ["PADDLE_PDX_CACHE_HOME"] = PADDLEX_CACHE
     os.environ.setdefault("PADDLE_PDX_MODEL_SOURCE", "huggingface")
     if offline:
         os.environ["PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK"] = "True"

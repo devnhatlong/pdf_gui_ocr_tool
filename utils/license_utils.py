@@ -18,7 +18,17 @@ except ImportError:
 # Cấu hình
 SECRET_KEY = b"CAT_LAMDONG_PRIVATE_KEY_2026"
 TRIAL_DAYS = 1  # Số ngày dùng thử
-LICENSE_FILE = "license.dat"
+import config
+LICENSE_FILE = config.LICENSE_FILE   # %LOCALAPPDATA%\OfflineOCR Studio\data\license.dat (khi đã cài đặt)
+_LEGACY_LICENSE_FILES = [os.path.join(config.APP_DIR, "license.dat"), "license.dat"]   # vị trí của bản cũ
+
+
+def _license_path():
+    """File license đang có (ưu tiên vị trí mới), hoặc vị trí mới nếu chưa có."""
+    for path in [LICENSE_FILE] + _LEGACY_LICENSE_FILES:
+        if os.path.exists(path):
+            return path
+    return LICENSE_FILE
 REGISTRY_KEY = r"SOFTWARE\PDF_GUI_OCR"  # Registry key để lưu trial data
 REGISTRY_VALUE = "TrialData"  # Tên value trong registry
 
@@ -291,11 +301,12 @@ def verify_license_key(license_key: str):
 
 def check_license():
     """Kiểm tra xem có license hợp lệ không"""
-    if not os.path.exists(LICENSE_FILE):
+    path = _license_path()
+    if not os.path.exists(path):
         return False
     
     try:
-        with open(LICENSE_FILE, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8") as f:
             license_key = f.read().strip()
         
         if not license_key:
@@ -310,6 +321,7 @@ def check_license():
 def save_license(license_key: str):
     """Lưu license key vào file"""
     try:
+        os.makedirs(os.path.dirname(LICENSE_FILE), exist_ok=True)
         with open(LICENSE_FILE, "w", encoding="utf-8") as f:
             f.write(license_key.strip())
         return True
@@ -319,11 +331,12 @@ def save_license(license_key: str):
 
 def get_license_info():
     """Lấy thông tin license (nếu có)"""
-    if not os.path.exists(LICENSE_FILE):
+    path = _license_path()
+    if not os.path.exists(path):
         return None
     
     try:
-        with open(LICENSE_FILE, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8") as f:
             license_key = f.read().strip()
         
         if not license_key:

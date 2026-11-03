@@ -93,12 +93,44 @@ def detect_device(prefer="auto"):
     return "cpu"
 
 
+_dirs_patched = False
+
+
+def patch_model_dirs():
+    """PaddleX mặc định tìm model trong PADDLE_PDX_CACHE_HOME/official_models. Thư mục đó phải ghi được
+    (file khóa, bộ đệm) nên đặt ở %LOCALAPPDATA%, còn model đi kèm bộ cài nằm trong Program Files (chỉ đọc).
+    Trỏ nơi tìm model về models/ cạnh .exe, và ưu tiên model người dùng nhập thêm."""
+    global _dirs_patched
+    if _dirs_patched:
+        return
+    from pathlib import Path
+    from paddlex.inference.utils import official_models as om
+
+    om._ModelManager._save_dir = Path(config.PADDLEX_MODEL_DIRS[-1])
+    extra = [Path(d) for d in config.PADDLEX_MODEL_DIRS[:-1]]
+    original = om._ModelManager._get_model_local_path
+
+    def _get_model_local_path(self, model_name):
+        names = (model_name,) if isinstance(model_name, str) else tuple(model_name)
+        for n in names:
+            n = n.replace("-0.9B", "") if "PaddleOCR-VL" in n else n
+            for root in extra:
+                if (root / n).is_dir():
+                    return root / n
+        return original(self, model_name)
+
+    om._ModelManager._get_model_local_path = _get_model_local_path
+    _dirs_patched = True
+
+
 def build_detector(device):
+    patch_model_dirs()
     from paddleocr import TextDetection
     return TextDetection(model_name=config.PPOCR_DET_MODEL, device=device)
 
 
 def build_ppocr(device):
+    patch_model_dirs()
     from paddleocr import PaddleOCR
     return PaddleOCR(
         text_detection_model_name=config.PPOCR_DET_MODEL,
@@ -111,6 +143,7 @@ def build_ppocr(device):
 
 
 def build_structure(device):
+    patch_model_dirs()
     from paddleocr import PPStructureV3
     # Chỉ bật phần cần thiết: bố cục + bảng. Tắt công thức, con dấu, biểu đồ để tiết kiệm bộ nhớ.
     return PPStructureV3(
@@ -130,6 +163,7 @@ def build_structure(device):
 
 
 def build_vl(device):
+    patch_model_dirs()
     from paddleocr import PaddleOCRVL
     return PaddleOCRVL(
         pipeline_version=config.VL_PIPELINE_VERSION,
@@ -141,6 +175,7 @@ def build_vl(device):
 
 
 def build_orientation(device):
+    patch_model_dirs()
     from paddleocr import DocImgOrientationClassification
     return DocImgOrientationClassification(model_name="PP-LCNet_x1_0_doc_ori", device=device)
 
@@ -148,8 +183,9 @@ def build_orientation(device):
 def vietocr_config():
     """Đọc config VietOCR từ file cục bộ (không tải từ mạng)."""
     from vietocr.tool.config import Cfg
-    cfg = Cfg.load_config_from_file(config.VIETOCR_CONFIG)
-    cfg["weights"] = config.VIETOCR_WEIGHTS
+    folder = config.vietocr_dir()
+    cfg = Cfg.load_config_from_file(os.path.join(folder, config.VIETOCR_CONFIG_NAME))
+    cfg["weights"] = os.path.join(folder, config.VIETOCR_WEIGHTS_NAME)
     cfg["device"] = "cpu"
     cfg["cnn"]["pretrained"] = False      # không tải trọng số VGG gốc của torchvision
     cfg["predictor"]["beamsearch"] = False
@@ -381,6 +417,7 @@ class OcrService:
         if cls._paddle_ok is None:
             try:
                 import paddleocr  # noqa: F401
+                patch_model_dirs()
                 cls._paddle_ok = True
             except Exception:
                 cls._paddle_ok = False
@@ -389,7 +426,7 @@ class OcrService:
 
     @staticmethod
     def model_dir(name):
-        return os.path.join(config.PADDLEX_HOME, "official_models", name)
+        return config.find_paddlex_model(name) or os.path.join(config.PADDLEX_MODEL_DIRS[-1], name)
 
     @classmethod
     def models_ready(cls, engine):
@@ -403,7 +440,7 @@ class OcrService:
 
     @staticmethod
     def vietocr_ready():
-        return os.path.exists(config.VIETOCR_CONFIG) and os.path.exists(config.VIETOCR_WEIGHTS)
+        return config.vietocr_dir() is not None
 
     def get_device(self):
         if self.device is None:
@@ -425,7 +462,7 @@ class OcrService:
         out = []
         for info in MODEL_INFO:
             if info["key"] == "viet":
-                paths = [config.VIETOCR_DIR]
+                paths = [config.vietocr_dir() or config.VIETOCR_DIRS[-1]]
                 ready = self.vietocr_ready()
                 loaded = self._viet is not None
             else:
@@ -552,6 +589,12 @@ class OcrService:
         image = Image.open(image_path).convert("RGB")
         with self._lock:
             chosen, note = self.resolve_engine(quality, engine, image)
+            if chosen == "vl" and self.paddle_available() and not self.models_ready("vl") \
+                    and self.models_ready("structure"):
+                # Bản cài Tiêu chuẩn không kèm PaddleOCR-VL -> dùng PP-StructureV3 thay thế
+                chosen = "structure"
+                note = ("Bản cài này không kèm PaddleOCR-VL 1.6 nên đã dùng PP-StructureV3. "
+                        "Cài bản Đầy đủ hoặc nhập model ở màn hình Quản lý mô hình nếu cần.")
             if not self.paddle_available():
                 result = self._tesseract(image)
                 result.notes.append("Chưa cài PaddleOCR - đang dùng Tesseract")
