@@ -17,7 +17,7 @@ import webview
 
 import config
 from core import exporters, history, imaging, metadata, splitter, system
-from core.document import SUPPORTED_EXTS, Document, new_workspace, unique_path
+from core.document import SUPPORTED_EXTS, Document, new_workspace, short_stem, unique_path
 from core.jobs import Cancelled, JobManager
 from core.settings import Settings
 from utils import license_utils as lic
@@ -472,7 +472,7 @@ class Api:
     def export_document(self, doc_id, fmt, scope="all", uid=None, path=None, name=None):
         doc = self._doc(doc_id)
         ext = exporters.FORMATS[fmt][1]
-        base = os.path.splitext(name or doc.name)[0]
+        base = short_stem(name or doc.name, 120)
         if not path:
             res = self._dialog("save", directory=self._output_dir(), save_filename=base + ext)
             if not res:
@@ -677,12 +677,12 @@ class Api:
     def export_groups(self, doc_id, groups, fmt="pdf", classify="none", folder=None):
         """Xuất mỗi nhóm thành file riêng. classify: none | type | agency (tạo thư mục con)."""
         doc = self._doc(doc_id)
-        folder = folder or self._output_dir(os.path.splitext(doc.name)[0])
+        folder = folder or self._output_dir(short_stem(doc.name, 60))
         outputs = []
         for g in groups:
             sub = {"type": g.get("type"), "agency": g.get("agency")}.get(classify) or ""
             target_dir = os.path.join(folder, re.sub(r'[\\/:*?"<>|]', "_", sub)) if sub else folder
-            name = re.sub(r'[\\/:*?"<>|\r\n\t]', "_", g.get("name") or "Van_ban").strip() or "Van_ban"
+            name = short_stem((g.get("name") or "Van_ban") + ".x", 120)
             ext = exporters.FORMATS[fmt][1]
             path = unique_path(os.path.join(target_dir, name + ext), self._settings.get("overwrite"))
             exporters.export(fmt, self._export_pages(doc, set(g["uids"])), path, doc)
@@ -750,7 +750,7 @@ class Api:
                             groups = splitter.analyze(doc, self._settings.all())
                         res = self.export_groups(doc.id, groups, "pdf",
                                                  opts.get("classify", "none"),
-                                                 os.path.join(out_root, os.path.splitext(doc.name)[0]))
+                                                 os.path.join(out_root, short_stem(doc.name, 60)))
                         outputs = res.get("outputs", [])
                         item["message"] = f"{len(outputs)} văn bản"
                     else:
@@ -764,7 +764,7 @@ class Api:
                             outputs = [res["path"]]
                             item["message"] = os.path.basename(res["path"])
                         else:
-                            out = unique_path(os.path.join(out_root, os.path.splitext(doc.name)[0]
+                            out = unique_path(os.path.join(out_root, short_stem(doc.name)
                                                            + exporters.FORMATS[fmt][1]), self._settings.get("overwrite"))
                             exporters.export(fmt, self._export_pages(doc), out, doc)
                             outputs = [out]

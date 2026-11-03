@@ -164,6 +164,13 @@ class Document:
                           for p in self.pages]}
 
 
+def short_stem(name, limit=100):
+    """Tên file (không phần mở rộng) an toàn và đủ ngắn: Windows giới hạn cả đường dẫn 260 ký tự."""
+    import re
+    stem = os.path.splitext(re.sub(r'[\\/:*?"<>|\r\n\t]', "_", name or ""))[0].strip(" ._")
+    return (stem[:limit].rstrip(" ._") or "Van_ban")
+
+
 def unique_path(path, overwrite=False):
     """Tránh ghi đè: thêm (1), (2)... nếu file đã tồn tại."""
     if overwrite or not os.path.exists(path):

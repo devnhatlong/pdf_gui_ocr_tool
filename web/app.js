@@ -276,7 +276,7 @@ async function renderOverview() {
   const ready = d.models.filter(m => m.ready).length;
   $('mModels').textContent = `${ready}/${d.models.length}`;
   $('mModelsLoaded').textContent = 'Đang nạp: ' + (d.models.filter(m => m.loaded).map(m => m.name).join(', ') || '-');
-  $('recentList').innerHTML = d.recent.length ? d.recent.map(r => `<div class="row between" style="margin-bottom:12px"><div>${ic('file-text', 'muted')} <b>${esc(r.name)}</b><div class="small muted" style="margin:5px 0 0 25px">${esc(r.kind_label)} · ${r.pages} trang${r.doc_count ? ' · ' + r.doc_count + ' văn bản' : ''} · ${fmtTime(r.created)}</div></div>${statusChip(r.status)}</div>`).join('')
+  $('recentList').innerHTML = d.recent.length ? d.recent.map(r => `<div class="row between" style="margin-bottom:12px"><div><b>${ic('file-text', 'muted')}<span>${esc(r.name)}</span></b><div class="small muted" style="margin:5px 0 0 25px">${esc(r.kind_label)} · ${r.pages} trang${r.doc_count ? ' · ' + r.doc_count + ' văn bản' : ''} · ${fmtTime(r.created)}</div></div>${statusChip(r.status)}</div>`).join('')
     : '<div class="empty">Chưa có tác vụ nào. Bấm “Bắt đầu OCR” để xử lý tài liệu đầu tiên.</div>';
   S.system = d.system; renderSysBars();
 }
@@ -777,6 +777,7 @@ function renderSelected() {
   $('selectedPageNum').textContent = S.sel.size > 1 ? `${idx + 1} (+${S.sel.size - 1} trang)` : idx + 1;
   const gi = groupIndexOf(S.cur);
   $('selectedGroupName').textContent = gi >= 0 ? S.groups[gi].name : 'Chưa nhóm';
+  $('selectedGroupName').title = $('selectedGroupName').textContent;
   const sc = S.scores[S.cur], isStart = S.groups.some(g => g.start_uid === S.cur);
   let html = isStart ? '<b>Trang bắt đầu văn bản.</b> ' : (gi >= 0 ? 'Trang tiếp nối của văn bản. ' : '');
   if (p.blank) html += 'Trang trắng (bỏ qua khi xuất nếu bật trong Cài đặt). ';
@@ -984,7 +985,7 @@ async function renderHistory() {
   let rows;
   try { rows = await call('history_search', $('historySearch').value, $('hKind').value, $('hStatus').value, +$('hDays').value); } catch (e) { return fail(e); }
   S.historyRows = rows;
-  $('historyBody').innerHTML = rows.length ? rows.map(r => `<tr><td><b>${ic('file-text', 'muted')} ${esc(r.name)}</b>${r.tags ? r.tags.split(',').filter(Boolean).map(t => `<span class="tagchip">${esc(t.trim())}</span>`).join('') : ''}${r.snippet ? `<span class="snippet">${esc(r.snippet)}</span>` : r.detail ? `<span class="snippet">${esc(r.detail)}</span>` : ''}</td><td>${esc(r.kind_label)}${r.doc_count ? `<div class="small muted">${r.doc_count} văn bản</div>` : ''}</td><td>${r.pages}</td><td class="muted small">${fmtTime(r.created)}</td><td class="small">${esc(r.engine || '-')}${r.confidence ? `<div class="muted">${Math.round(r.confidence * 100)}%</div>` : ''}</td><td>${statusChip(r.status)}</td><td><div class="acts">
+  $('historyBody').innerHTML = rows.length ? rows.map(r => `<tr><td><b>${ic('file-text', 'muted')}<span>${esc(r.name)}</span></b>${r.tags ? r.tags.split(',').filter(Boolean).map(t => `<span class="tagchip">${esc(t.trim())}</span>`).join('') : ''}${r.snippet ? `<span class="snippet">${esc(r.snippet)}</span>` : r.detail ? `<span class="snippet" title="${esc(r.detail)}">${esc(r.detail.length > 140 ? r.detail.slice(0, 140) + '…' : r.detail)}</span>` : ''}</td><td>${esc(r.kind_label)}${r.doc_count ? `<div class="small muted">${r.doc_count} văn bản</div>` : ''}</td><td>${r.pages}</td><td class="muted small">${fmtTime(r.created)}</td><td class="small">${esc(r.engine || '-')}${r.confidence ? `<div class="muted">${Math.round(r.confidence * 100)}%</div>` : ''}</td><td>${statusChip(r.status)}</td><td><div class="acts">
       ${r.outputs.length ? `<button class="btn small" data-a="open" data-id="${r.id}">Mở</button>` : ''}
       <button class="btn small" data-a="folder" data-id="${r.id}">Thư mục</button>
       ${r.source ? `<button class="btn small" data-a="reopen" data-id="${r.id}">OCR lại</button>` : ''}

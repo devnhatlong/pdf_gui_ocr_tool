@@ -159,11 +159,10 @@
                   <button class="btn small" onclick="zoom(-1)" title="Thu nhỏ"><i data-ic="minus"></i></button><span
                     class="small" id="zoomLabel">Vừa khung</span><button class="btn small" onclick="zoom(1)"
                     title="Phóng to"><i data-ic="zoom-in"></i></button>
-                  <button class="btn small" onclick="zoom(0)"><i data-ic="maximize"></i> Vừa khung</button>
-                  <button class="btn small" id="btnBoxes" onclick="toggleBoxes()"><i data-ic="frame"></i> Vùng
-                    OCR</button>
-                  <button class="btn small" id="btnRegion" onclick="toggleRegion()"><i
-                      data-ic="square-dashed-mouse-pointer"></i> OCR lại vùng chọn</button>
+                  <button class="btn small" onclick="zoom(0)" title="Vừa khung"><i data-ic="maximize"></i></button>
+                  <button class="btn small" id="btnBoxes" onclick="toggleBoxes()" title="Hiện khung tọa độ OCR"><i data-ic="frame"></i> <span class="lbl">Vùng OCR</span></button>
+                  <button class="btn small" id="btnRegion" onclick="toggleRegion()" title="Kéo chọn một vùng trên ảnh để OCR lại"><i
+                      data-ic="square-dashed-mouse-pointer"></i> <span class="lbl">OCR lại vùng chọn</span></button>
                 </div>
                 <div class="viewer" id="viewer">
                   <div class="empty" style="margin-top:80px">Thêm tài liệu PDF hoặc ảnh để bắt đầu<br><br><button
@@ -176,8 +175,7 @@
             <div class="pane">
               <div class="panehead">Kết quả nhận dạng <span class="chip" id="resultChip">Có thể chỉnh sửa</span></div>
               <div class="panebody">
-                <div class="tabs" id="ocrResultTabs"><button class="tab active" data-result="text">Văn
-                    bản</button><button class="tab" data-result="table">Bảng biểu</button><button class="tab"
+                <div class="tabs" id="ocrResultTabs"><button class="tab active" data-result="text">Văn bản</button><button class="tab" data-result="table">Bảng biểu</button><button class="tab"
                     data-result="layout">Bố cục</button><button class="tab" data-result="info">Đặt tên</button></div>
                 <div id="ocrTextArea">
                   <div class="toolbar">
@@ -186,10 +184,9 @@
                     <button class="btn small" onclick="document.execCommand('redo')" title="Làm lại (Ctrl+Y)"><i
                         data-ic="redo-2"></i></button>
                     <button class="btn small" onclick="openFind()" title="Tìm & thay thế (Ctrl+H)"><i
-                        data-ic="search"></i> Tìm</button>
-                    <button class="btn small" onclick="saveDraft()" title="Lưu bản nháp (Ctrl+S)"><i data-ic="save"></i>
-                      Nháp</button>
-                    <button class="btn small" onclick="copyResult()"><i data-ic="copy"></i> Copy</button>
+                        data-ic="search"></i> <span class="lbl">Tìm</span></button>
+                    <button class="btn small" onclick="saveDraft()" title="Lưu bản nháp (Ctrl+S)"><i data-ic="save"></i> <span class="lbl">Nháp</span></button>
+                    <button class="btn small" onclick="copyResult()" title="Copy văn bản"><i data-ic="copy"></i> <span class="lbl">Copy</span></button>
                   </div>
                   <div id="findBar" class="findbar hidden"><input class="input" id="findText" placeholder="Tìm…"><input
                       class="input" id="replaceText" placeholder="Thay bằng…"><button class="btn small"
