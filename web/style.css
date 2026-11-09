@@ -282,3 +282,8 @@ input.check{margin:0;flex-shrink:0}
 .mapsearch{margin-bottom:9px}
 .mappager{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px;min-height:32px}
 .mappager .btn.small{padding:6px 8px}
+/* Chấm trạng thái bản quyền: xanh = đã kích hoạt, đỏ = chưa */
+.licdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:1px;flex-shrink:0}
+.licdot.on{background:#22c55e}
+.licdot.off{background:#ef4444}
+#pillLicense{display:inline-flex;align-items:center}

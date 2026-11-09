@@ -124,7 +124,7 @@ function applyTheme(value) {
   });
   const select = document.querySelector('#settings [data-key="theme"]');
   if (select) select.value = theme;
-  try { localStorage.setItem('offlineocr.theme', theme); } catch (_) {}
+  try { localStorage.setItem('offlineocr.theme', theme); } catch (_) { }
 }
 let themeSaving = false;
 function setThemeBusy(busy) {
@@ -165,7 +165,8 @@ function navigate(page) {
 function updateLicense(lic) {
   S.license = lic;
   const p = $('pillLicense');
-  p.textContent = lic.state === 'licensed' ? 'Đã kích hoạt' : lic.state === 'trial' ? `Dùng thử · ${lic.days} ngày` : 'Hết hạn dùng thử';
+  const label = lic.state === 'licensed' ? 'Đã kích hoạt' : lic.state === 'trial' ? `Dùng thử · ${lic.days} ngày` : 'Hết hạn dùng thử';
+  p.innerHTML = `<span class="licdot ${lic.state === 'licensed' ? 'on' : 'off'}"></span>${esc(label)}`;
   p.title = 'Quản lý bản quyền';
   p.className = 'pill pillbtn ' + lic.state;
 }
@@ -750,6 +751,7 @@ function renderSplit() {
   renderSelected();
   showSplitPage();
   $('countDocs').textContent = S.groups.length;
+  $('btnExportGroups').innerHTML = `${ic('download')} Xuất văn bản${S.groups.length ? ` (${S.groups.length})` : ''}`;
   $('splitInfo').textContent = S.groups.length ? `${S.groups.length} văn bản · ${S.groups.filter(g => g.confidence < thr).length} điểm tách cần kiểm tra` : `${doc.pages.length} trang · chưa phân tích`;
 }
 function renderPageRail(doc) {
@@ -834,6 +836,30 @@ function renderGroups() {
   const chosen = $('groups').querySelector('.docgroup.chosen');
   if (chosen) chosen.scrollIntoView({ block: 'nearest' });
 }
+// Các ô thông tin hiển thị đúng bằng các trường có trong quy tắc đặt tên (Cài đặt)
+const SPLIT_FIELDS = {
+  so: { label: 'Số văn bản', ph: 'VD: 123' },
+  loai: { label: 'Loại văn bản', ph: 'VD: BC' },
+  coquan: { label: 'Cơ quan ban hành', ph: 'VD: PV01' },
+  ngay: { label: 'Ngày ban hành', ph: 'dd/mm/yyyy' },
+  trichyeu: { label: 'Trích yếu', ph: 'Về việc…' },
+};
+function splitFieldKeys() {
+  const found = [...new Set((String(S.settings.naming_rule || '').match(/\{(so|loai|coquan|ngay|trichyeu)\}/g) || []).map(s => s.slice(1, -1)))];
+  return found.length ? found : ['so', 'ngay', 'trichyeu'];
+}
+function renderSplitFields(g) {
+  const keys = splitFieldKeys(), sig = keys.join(',');
+  if ($('splitFields').dataset.sig !== sig) {
+    $('splitFields').dataset.sig = sig;
+    $('splitFields').innerHTML = keys.map(k => `<div${k === 'trichyeu' ? ' class="fieldwide"' : ''}><label class="fieldlabel">${SPLIT_FIELDS[k].label}</label><input class="input w100" data-fk="${k}" placeholder="${SPLIT_FIELDS[k].ph}" oninput="editGroupField('${k}', this.value)"></div>`).join('');
+  }
+  const fields = g ? groupFields(g) : {};
+  $('splitFields').querySelectorAll('input[data-fk]').forEach(inp => {
+    if (document.activeElement !== inp) inp.value = fields[inp.dataset.fk] || '';
+    inp.disabled = !g;
+  });
+}
 function renderSelected() {
   const doc = S.docs[S.splitDoc];
   const idx = doc.pages.findIndex(p => p.uid === S.cur), p = doc.pages[idx];
@@ -841,11 +867,7 @@ function renderSelected() {
   const isStart = startsList().includes(S.cur), input = $('groupRename');
   if (document.activeElement !== input) input.value = g ? g.name : '';
   input.disabled = !g;
-  const fields = g ? groupFields(g) : {};
-  [['fgSo', 'so'], ['fgNgay', 'ngay'], ['fgTrich', 'trichyeu']].forEach(([id, key]) => {
-    if (document.activeElement !== $(id)) $(id).value = fields[key] || '';
-    $(id).disabled = !g;
-  });
+  renderSplitFields(g);
   $('btnExportOne').disabled = !g;
   $('btnAutoName').classList.toggle('hidden', !(g && S.groupNames[g.start_uid] && g.auto_name));
   $('splitPageNo').textContent = gi >= 0 ? `Trang ${S.groups[gi].uids.indexOf(S.cur) + 1}/${S.groups[gi].uids.length}` : `Trang ${idx + 1}/${doc.pages.length}`;

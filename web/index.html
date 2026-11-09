@@ -267,14 +267,7 @@
             </div>
             <div class="pane" id="splitView">
               <div class="namebar hidden" id="splitNameBar">
-                <div class="fieldrow">
-                  <div><label class="fieldlabel" for="fgSo">Số ký hiệu</label><input class="input w100" id="fgSo"
-                      placeholder="VD: 123/BC-DONVI" oninput="editGroupField('so', this.value)"></div>
-                  <div><label class="fieldlabel" for="fgNgay">Ngày ban hành</label><input class="input w100" id="fgNgay"
-                      placeholder="dd/mm/yyyy" oninput="editGroupField('ngay', this.value)"></div>
-                  <div><label class="fieldlabel" for="fgTrich">Trích yếu</label><input class="input w100" id="fgTrich"
-                      oninput="editGroupField('trichyeu', this.value)"></div>
-                </div>
+                <div class="fieldrow" id="splitFields"></div>
                 <label class="fieldlabel mt" for="groupRename">Tên file</label>
                 <div class="row"><input class="input" id="groupRename" oninput="renameGroup(this.value)" disabled
                     placeholder="Chưa có văn bản"><button class="btn small hidden" id="btnAutoName"

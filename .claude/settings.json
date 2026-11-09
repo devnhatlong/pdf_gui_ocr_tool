@@ -55,7 +55,11 @@
       "PowerShell($env:TEMP='D:\\\\Temp\\\\Codex'; $env:TMP='D:\\\\Temp\\\\Codex'; $env:PYTHONIOENCODING='utf-8'; .venv\\\\Scripts\\\\python.exe -m unittest discover -s tests 2>&1 | Select-Object -Last 3)",
       "Bash(python -c \"import json; d=json.load\\(open\\('data/settings.json',encoding='utf-8'\\)\\); print\\('naming_rule:', repr\\(d.get\\('naming_rule'\\)\\)\\)\")",
       "PowerShell($env:TEMP='D:\\\\Temp\\\\Codex'; $env:TMP='D:\\\\Temp\\\\Codex'; $env:PYTHONIOENCODING='utf-8'; .venv\\\\Scripts\\\\python.exe -m unittest discover -s tests 2>&1 | Select-String -Pattern 'FAIL:|AssertionError' | Select-Object -First 10)",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "PowerShell(Get-CimInstance Win32_Process | Where-Object { \\($_.Name -eq 'chrome.exe' -and $_.CommandLine -match 'chrome_\\(s2|mp|ag|set|ui\\)'\\) -or \\($_.Name -eq 'python.exe' -and $_.CommandLine -match 'ui_server'\\) } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }; Remove-Item -Recurse -Force D:\\\\Temp\\\\Codex\\\\set_ui, D:\\\\Temp\\\\Codex\\\\chrome_s2 -ErrorAction SilentlyContinue; \"cleaned\")",
+      "Bash(python -c \"import config; print\\('APP_VERSION =', config.APP_VERSION\\)\")",
+      "PowerShell(Get-CimInstance Win32_Process | Where-Object { \\($_.Name -eq 'chrome.exe' -and $_.CommandLine -match 'chrome_\\(tr|s2|mp|ag|set|ui\\)'\\) -or \\($_.Name -eq 'python.exe' -and $_.CommandLine -match 'ui_server'\\) } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }; Remove-Item -Recurse -Force D:\\\\Temp\\\\Codex\\\\set_ui, D:\\\\Temp\\\\Codex\\\\chrome_tr -ErrorAction SilentlyContinue; \"cleaned\")",
+      "PowerShell(Get-CimInstance Win32_Process | Where-Object { \\($_.Name -eq 'chrome.exe' -and $_.CommandLine -match 'chrome_tr'\\) -or \\($_.Name -eq 'python.exe' -and $_.CommandLine -match 'ui_server'\\) } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }; Remove-Item -Recurse -Force D:\\\\Temp\\\\Codex\\\\set_ui, D:\\\\Temp\\\\Codex\\\\chrome_tr -ErrorAction SilentlyContinue; \"cleaned\")"
     ],
     "additionalDirectories": [
       "D:\\Project\\DesktopApp\\license_tool\\utils"
