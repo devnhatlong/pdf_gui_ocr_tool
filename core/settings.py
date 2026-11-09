@@ -13,7 +13,7 @@ DEFAULTS = {
     "export_format": "pdf",            # pdf | searchable_pdf | docx | xlsx | txt
     "keep_original": True,
     "folder_by_date": True,
-    "naming_rule": "{so}-{loai}-{coquan}_{ngay}_{trichyeu}",
+    "naming_rule": "{coquan}_{loai}_{so}_{ngay}_{trichyeu}",
     "slash_replacement": "-",          # chuỗi thay cho dấu / trong tên file
     "filename_ascii": True,            # tên file không dấu, trích yếu viết liền (VeViecBoNhiem)
     "doc_type_map": list(metadata.DEFAULT_TYPE_MAP),     # bảng viết tắt loại văn bản (sửa trong Cài đặt)
