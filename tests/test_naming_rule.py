@@ -57,15 +57,15 @@ class NamingRuleTests(unittest.TestCase):
             return Settings(path).get("naming_rule")
 
     def test_default_rule_is_number_type_agency_date_summary(self):
-        self.assertEqual(DEFAULTS["naming_rule"], "{so}-{loai}-{coquan}_{ngay}_{trichyeu}")
+        self.assertEqual(DEFAULTS["naming_rule"], "{coquan}_{loai}_{so}_{ngay}_{trichyeu}")
         self.assertEqual(metadata.build_filename(FIELDS, DEFAULTS["naming_rule"]),
-                         "123-QĐ-UBND_05-11-2026_Về việc phê duyệt kế hoạch.pdf")
+                         "UBND_QĐ_123_05-11-2026_Về việc phê duyệt kế hoạch.pdf")
 
     def test_user_example(self):
         fields = {"loai": "BC", "coquan": "CAT", "so": "56/BC-CAT", "ngay": "19/10/2026",
                   "trichyeu": "Quyết định bổ nhiệm kỹ thuật viên sơ cấp"}
         self.assertEqual(metadata.build_filename(fields, DEFAULTS["naming_rule"], ext=""),
-                         "56-BC-CAT_19-10-2026_Quyết định bổ nhiệm kỹ thuật viên sơ cấp")
+                         "CAT_BC_56_19-10-2026_Quyết định bổ nhiệm kỹ thuật viên sơ cấp")
 
     def test_summary_all_caps_and_illegal_characters(self):
         self.assertEqual(metadata.build_filename({"trichyeu": "VỀ VIỆC PHÊ DUYỆT"}), "Về việc phê duyệt.pdf")
@@ -115,8 +115,8 @@ class NamingRuleTests(unittest.TestCase):
             self.assertEqual(Settings(path).get("slash_replacement"), ".")
 
     def test_missing_part_drops_its_separator(self):
-        self.assertEqual(metadata.build_filename({**FIELDS, "ngay": ""}, "{so}-{loai}-{coquan}_{ngay}_{trichyeu}"),
-                         "123-QĐ-UBND_Về việc phê duyệt kế hoạch.pdf")
+        self.assertEqual(metadata.build_filename({**FIELDS, "ngay": ""}, "{coquan}_{loai}_{so}_{ngay}_{trichyeu}"),
+                         "UBND_QĐ_123_Về việc phê duyệt kế hoạch.pdf")
 
     def test_number_keeps_letter_d_with_stroke(self):
         for number in ("1/QĐ-UBND", "45/2026/NĐ-CP", "88/KH-ĐU", "15/ĐA-UBND", "12/TB-VP"):

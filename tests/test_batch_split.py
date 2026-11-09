@@ -19,7 +19,7 @@ HEADER = ("ỦY BAN NHÂN DÂN HUYỆN X\nCỘNG HÒA XÃ HỘI CHỦ NGHĨA VI�
 class FakeSettings:
     def __init__(self, output_dir):
         self.values = {"output_dir": output_dir, "dpi": 72, "split_threshold": 70, "remove_blank_pages": True,
-                       "naming_rule": "{so}-{loai}-{coquan}_{ngay}_{trichyeu}", "slash_replacement": "-"}
+                       "naming_rule": "{coquan}_{loai}_{so}_{ngay}_{trichyeu}", "slash_replacement": "-"}
 
     def get(self, key, default=None):
         return self.values.get(key, default)
@@ -136,7 +136,7 @@ class BatchSplitTests(unittest.TestCase):
         self.assertTrue(os.path.exists(self.source))
         self.assertEqual(len(outputs), 2)
         self.assertTrue(all(p.endswith(".pdf") and "Phan_" not in p for p in outputs), outputs)
-        self.assertTrue(all(os.path.basename(p).startswith(("1-QĐ-UBND", "3-QĐ-UBND")) for p in outputs), outputs)
+        self.assertTrue(all(os.path.basename(p).startswith(("UBND_QĐ_1", "UBND_QĐ_3")) for p in outputs), outputs)
 
     def test_split_names_use_configured_slash_replacement(self):
         self.api._settings.values["slash_replacement"] = "."
