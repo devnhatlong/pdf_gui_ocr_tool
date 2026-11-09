@@ -6,7 +6,11 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>OfflineOCR Studio</title>
   <link rel="icon" type="image/png" sizes="256x256" href="assets/logo.png">
+  <script>
+    try { document.documentElement.dataset.theme = localStorage.getItem('offlineocr.theme') === 'dark' ? 'dark' : 'light'; } catch (_) { }
+  </script>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="theme.css">
 </head>
 
 <body>
@@ -14,43 +18,45 @@
     <aside class="sidebar">
       <div class="logo">
         <div class="logoicon"><img src="assets/logo.png" alt="" width="42" height="42"></div>
-        <div><strong>OfflineOCR</strong><small>STUDIO · Document AI</small></div>
+        <div><strong>OfflineOCR</strong><small>Studio</small></div>
       </div>
-      <div class="navtitle">KHÔNG GIAN LÀM VIỆC</div>
+      <div class="navtitle">Tài liệu</div>
       <button class="nav active" data-page="overview"><span class="ico"><i
             data-ic="layout-dashboard"></i></span><span>Tổng quan</span></button>
       <button class="nav" data-page="ocr"><span class="ico"><i data-ic="scan-text"></i></span><span>OCR tài
           liệu</span></button>
-      <button class="nav" data-page="split"><span class="ico"><i data-ic="scissors"></i></span><span>Cắt, ghép & Tách
-          AI</span></button>
+      <button class="nav" data-page="split"><span class="ico"><i data-ic="scissors"></i></span><span>Tách &amp; ghép
+          PDF</span></button>
       <button class="nav" data-page="batch"><span class="ico"><i data-ic="layers"></i></span><span>Xử lý hàng
           loạt</span></button>
-      <button class="nav" data-page="history"><span class="ico"><i data-ic="history"></i></span><span>Lịch sử & Kết
-          quả</span></button>
-      <div class="navtitle">HỆ THỐNG</div>
+      <button class="nav" data-page="history"><span class="ico"><i data-ic="history"></i></span><span>Lịch
+          sử</span></button>
+      <div class="navtitle">Ứng dụng</div>
       <button class="nav" data-page="models"><span class="ico"><i data-ic="cpu"></i></span><span>Quản lý mô
           hình</span></button>
       <button class="nav" data-page="settings"><span class="ico"><i data-ic="settings"></i></span><span>Cài
           đặt</span></button>
-      <div class="sidebottom">
-        <div class="statbox">
-          <div class="onlinetag"><span class="dot"></span> HOẠT ĐỘNG OFFLINE</div>
-          <p class="small muted" style="margin:13px 0 4px" id="sbDevice">Đang kiểm tra phần cứng…</p>
-          <div class="progress"><span id="sbBar" style="width:0%"></span></div>
-          <p class="small muted" style="margin:7px 0 0" id="sbMem">-</p>
-        </div>
-        <div class="small muted" style="padding:10px 10px 0" id="sbVersion">v2.0</div>
-        <div class="small muted" style="padding:2px 10px 6px" id="sbAuthor"></div>
-      </div>
+      <div class="sidebottom"><span class="small muted" id="sbVersion">v2.0</span></div>
     </aside>
     <div class="main">
       <header class="topbar">
-        <div class="bread">OfflineOCR Studio / <strong id="breadcrumb">Tổng quan</strong></div>
+        <h1 id="breadcrumb">Tổng quan</h1>
         <div class="topright">
-          <span class="pill"><i data-ic="lock"></i> Dữ liệu trên thiết bị</span>
-          <span class="pill" id="pillDevice">Đang khởi động</span>
+          <div class="theme-switch" role="group" aria-label="Giao diện">
+            <button type="button" data-theme="light" aria-pressed="true" onclick="setTheme('light')" disabled><svg
+                class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="4" />
+                <path
+                  d="M12 2v2m0 16v2M2 12h2m16 0h2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" />
+              </svg><span>Sáng</span></button>
+            <button type="button" data-theme="dark" aria-pressed="false" onclick="setTheme('dark')" disabled><svg
+                class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round" aria-hidden="true">
+                <path d="M20.9 13.1A9 9 0 0 1 10.9 3.1 9 9 0 1 0 20.9 13.1Z" />
+              </svg><span>Tối</span></button>
+          </div>
           <button class="pill pillbtn" id="pillLicense" onclick="openLicense()">Bản quyền</button>
-          <span class="avatar" title="OfflineOCR Studio"><img src="assets/logo.png" alt="" width="31" height="31"></span>
         </div>
       </header>
       <div class="content">
@@ -59,40 +65,36 @@
         <section id="overview" class="page active">
           <div class="heading">
             <div>
-              <h1>Xin chào! <span class="wave"><i data-ic="hand"></i></span></h1>
-              <p class="sub">Trung tâm số hóa tài liệu bằng AI - xử lý 100% trên máy, không cần Internet.</p>
+              <p class="sub">Mở PDF hoặc ảnh để nhận dạng và xử lý tài liệu.</p>
             </div>
             <button class="btn primary" onclick="quickOcr()"><i data-ic="plus"></i> Bắt đầu OCR</button>
           </div>
           <div class="grid cols4" style="margin-bottom:20px">
-            <div class="card metric"><span class="emoji"><i data-ic="files"></i></span><small>Trang đã xử lý</small><b
-                id="mPages">0</b><small id="mTasks">0 tác vụ</small></div>
-            <div class="card metric"><span class="emoji"><i data-ic="scissors"></i></span><small>Văn bản đã
-                tách</small><b id="mDocs">0</b><small>Bằng AI và thủ công</small></div>
-            <div class="card metric"><span class="emoji"><i data-ic="circle-check"></i></span><small>Tác vụ thành công /
+            <div class="card metric"><small>Trang đã xử lý</small><b id="mPages">0</b><small id="mTasks">0 tác
+                vụ</small></div>
+            <div class="card metric"><small>Văn bản đã
+                tách</small><b id="mDocs">0</b><small>Tổng số văn bản</small></div>
+            <div class="card metric"><small>Tác vụ thành công /
                 lỗi</small><b id="mOk">0</b><small id="mConf">Độ tin cậy OCR: -</small></div>
-            <div class="card metric"><span class="emoji"><i data-ic="cpu"></i></span><small>Model sẵn sàng</small><b
-                id="mModels">0/5</b><small id="mModelsLoaded">Đang nạp: -</small></div>
+            <div class="card metric"><small>Mô hình đã cài</small><b id="mModels">0/5</b><small id="mModelsLoaded">Chưa
+                sử dụng</small></div>
           </div>
           <div class="grid cols3" style="margin-bottom:19px">
             <div class="card cardpad">
-              <div class="cardicon"><i data-ic="scan-text"></i></div>
               <h3>OCR tài liệu</h3>
-              <p class="sub small">Nhận dạng PDF, ảnh scan, tiếng Việt có dấu, bảng biểu; xem, sửa và xuất Word, Excel,
-                PDF có lớp chữ.</p><button style="margin-top:17px" class="btn small" onclick="navigate('ocr')">Mở OCR <i
+              <p class="sub small">Nhận dạng chữ và bảng từ PDF hoặc ảnh. Xuất Word, Excel hoặc PDF có thể tìm kiếm.</p>
+              <button style="margin-top:17px" class="btn small" onclick="navigate('ocr')">Mở OCR <i
                   data-ic="arrow-right"></i></button>
             </div>
             <div class="card cardpad">
-              <div class="cardicon"><i data-ic="scissors"></i></div>
-              <h3>Tách văn bản bằng AI</h3>
-              <p class="sub small">Nhận biết ranh giới từng văn bản trong một tập scan; duyệt điểm tách và xuất từng
-                file riêng, tự đặt tên.</p><button style="margin-top:17px" class="btn small"
-                onclick="navigate('split')">Mở công cụ <i data-ic="arrow-right"></i></button>
+              <h3>Tách &amp; ghép PDF</h3>
+              <p class="sub small">Chia hồ sơ thành từng văn bản, sắp xếp trang và ghép PDF.</p><button
+                style="margin-top:17px" class="btn small" onclick="navigate('split')">Mở công cụ <i
+                  data-ic="arrow-right"></i></button>
             </div>
             <div class="card cardpad">
-              <div class="cardicon"><i data-ic="layers"></i></div>
               <h3>Xử lý hàng loạt</h3>
-              <p class="sub small">Thêm nhiều file hoặc cả thư mục, chọn quy trình và theo dõi tiến độ từng file.</p>
+              <p class="sub small">OCR, tách hoặc đổi tên nhiều tài liệu cùng lúc.</p>
               <button style="margin-top:17px" class="btn small" onclick="navigate('batch')">Tạo tác vụ <i
                   data-ic="arrow-right"></i></button>
             </div>
@@ -120,14 +122,13 @@
         <section id="ocr" class="page">
           <div class="heading">
             <div>
-              <h1>OCR tài liệu</h1>
-              <p class="sub">Nhận dạng tài liệu và hiệu chỉnh văn bản ngay bên cạnh ảnh gốc.</p>
+              <p class="sub">Nhận dạng văn bản, đối chiếu bản gốc và xuất kết quả.</p>
             </div>
             <div class="actions"><button class="btn" onclick="addDocuments('ocr')"><i data-ic="plus"></i> Thêm tài
                 liệu</button>
               <button class="btn" id="btnOcrPage" onclick="runOcr('page')"><i data-ic="refresh-cw"></i> OCR trang
                 này</button>
-              <button class="btn primary" id="btnOcrAll" onclick="runOcr('all')"><i data-ic="sparkles"></i> Bắt đầu
+              <button class="btn primary" id="btnOcrAll" onclick="runOcr('all')">Bắt đầu
                 OCR</button>
             </div>
           </div>
@@ -161,9 +162,11 @@
                     class="small" id="zoomLabel">Vừa khung</span><button class="btn small" onclick="zoom(1)"
                     title="Phóng to"><i data-ic="zoom-in"></i></button>
                   <button class="btn small" onclick="zoom(0)" title="Vừa khung"><i data-ic="maximize"></i></button>
-                  <button class="btn small" id="btnBoxes" onclick="toggleBoxes()" title="Hiện khung tọa độ OCR"><i data-ic="frame"></i> <span class="lbl">Vùng OCR</span></button>
-                  <button class="btn small" id="btnRegion" onclick="toggleRegion()" title="Kéo chọn một vùng trên ảnh để OCR lại"><i
-                      data-ic="square-dashed-mouse-pointer"></i> <span class="lbl">OCR lại vùng chọn</span></button>
+                  <button class="btn small" id="btnBoxes" onclick="toggleBoxes()" title="Hiện khung tọa độ OCR"><i
+                      data-ic="frame"></i> <span class="lbl">Vùng OCR</span></button>
+                  <button class="btn small" id="btnRegion" onclick="toggleRegion()"
+                    title="Kéo chọn một vùng trên ảnh để OCR lại"><i data-ic="square-dashed-mouse-pointer"></i> <span
+                      class="lbl">OCR lại vùng chọn</span></button>
                 </div>
                 <div class="viewer" id="viewer">
                   <div class="empty" style="margin-top:80px">Thêm tài liệu PDF hoặc ảnh để bắt đầu<br><br><button
@@ -174,9 +177,10 @@
               </div>
             </div>
             <div class="pane">
-              <div class="panehead">Kết quả nhận dạng <span class="chip" id="resultChip">Có thể chỉnh sửa</span></div>
+              <div class="panehead">Kết quả nhận dạng <span class="chip" id="resultChip"></span></div>
               <div class="panebody">
-                <div class="tabs" id="ocrResultTabs"><button class="tab active" data-result="text">Văn bản</button><button class="tab" data-result="table">Bảng biểu</button><button class="tab"
+                <div class="tabs" id="ocrResultTabs"><button class="tab active" data-result="text">Văn
+                    bản</button><button class="tab" data-result="table">Bảng biểu</button><button class="tab"
                     data-result="layout">Bố cục</button><button class="tab" data-result="info">Đặt tên</button></div>
                 <div id="ocrTextArea">
                   <div class="toolbar">
@@ -186,8 +190,10 @@
                         data-ic="redo-2"></i></button>
                     <button class="btn small" onclick="openFind()" title="Tìm & thay thế (Ctrl+H)"><i
                         data-ic="search"></i> <span class="lbl">Tìm</span></button>
-                    <button class="btn small" onclick="saveDraft()" title="Lưu bản nháp (Ctrl+S)"><i data-ic="save"></i> <span class="lbl">Nháp</span></button>
-                    <button class="btn small" onclick="copyResult()" title="Copy văn bản"><i data-ic="copy"></i> <span class="lbl">Copy</span></button>
+                    <button class="btn small" onclick="saveDraft()" title="Lưu bản nháp (Ctrl+S)"><i data-ic="save"></i>
+                      <span class="lbl">Nháp</span></button>
+                    <button class="btn small" onclick="copyResult()" title="Copy văn bản"><i data-ic="copy"></i> <span
+                        class="lbl">Copy</span></button>
                   </div>
                   <div id="findBar" class="findbar hidden"><input class="input" id="findText" placeholder="Tìm…"><input
                       class="input" id="replaceText" placeholder="Thay bằng…"><button class="btn small"
@@ -240,129 +246,82 @@
 
         <!-- ========================= CẮT GHÉP & TÁCH AI ========================= -->
         <section id="split" class="page">
-          <div class="heading">
-            <div>
-              <h1>Cắt, ghép & Tách tài liệu AI</h1>
-              <p class="sub">Chia tập hồ sơ scan thành nhiều văn bản, sắp xếp trang, ghép và xuất PDF riêng.</p>
-            </div>
-            <div class="actions"><button class="btn" onclick="addDocuments('split')"><i data-ic="plus"></i> Nạp tập tài
-                liệu</button><button class="btn primary" id="btnAnalyze" onclick="analyzeSplit()"><i
-                  data-ic="sparkles"></i> Phân tích tài liệu</button></div>
+          <div class="splitbar">
+            <div class="row"><select id="splitDocSelect" class="select" onchange="selectSplitDoc(this.value)">
+                <option value="">- Chưa có tài liệu -</option>
+              </select><span class="chip" id="splitInfo">Chưa phân tích</span></div>
+            <div class="actions"><button class="btn" onclick="addDocuments('split')"><i data-ic="plus"></i> Thêm tài
+                liệu</button><button class="btn" id="btnSplitTools" disabled onclick="openSplitTools()"><i
+                  data-ic="scissors"></i> Cách chia
+                khác</button><button class="btn primary" id="btnAnalyze" disabled onclick="analyzeSplit()">Phân tích tài
+                liệu</button></div>
           </div>
-          <div class="card cardpad">
-            <div class="tabs" id="splitTabs"><button class="tab active" data-splittab="ai"><i data-ic="sparkles"></i>
-                Tách văn bản AI</button><button class="tab" data-splittab="manual"><i data-ic="scissors"></i> Cắt trang
-                thủ công</button><button class="tab" data-splittab="merge"><i data-ic="merge"></i> Ghép & Sắp
-                xếp</button><button class="tab" data-splittab="blank"><i data-ic="file"></i> Trang trắng / QR</button>
+          <div class="splitdesk">
+            <div class="pane">
+              <div class="panehead"><span>Văn bản</span><span class="chip" id="countDocs">0</span></div>
+              <div class="panebody docitems" id="groups">
+                <div class="empty small">Mở tài liệu rồi bấm “Phân tích tài liệu” để tìm các văn bản.</div>
+              </div>
+              <div class="panefoot"><button class="btn primary w100" id="btnExportGroups" disabled
+                  onclick="previewGroupExport()"><i data-ic="download"></i> Xuất văn bản</button></div>
             </div>
-            <div class="row between" style="flex-wrap:wrap;margin-bottom:16px">
-              <div class="row"><select id="splitDocSelect" class="select" onchange="selectSplitDoc(this.value)">
-                  <option value="">- Chưa có tài liệu -</option>
-                </select><span class="muted small" id="splitPageInfo"></span></div>
-              <span class="chip" id="splitInfo">Chưa phân tích</span>
-            </div>
-            <div class="splitlayout">
-              <div>
-                <div class="row between" style="margin-bottom:9px"><strong id="pagesTitle">Xem trước trang</strong><span
-                    class="muted small">Bấm chọn trang · Ctrl/Shift để chọn nhiều · kéo thả để sắp xếp</span></div>
-                <div class="pagegrid" id="pageStrip">
-                  <div class="empty">Nạp một tập PDF/ảnh scan để bắt đầu<br><br><button class="btn small"
-                      onclick="addDocuments('split')"><i data-ic="plus"></i> Chọn tài liệu</button></div>
+            <div class="pane" id="splitView">
+              <div class="namebar hidden" id="splitNameBar">
+                <div class="fieldrow">
+                  <div><label class="fieldlabel" for="fgSo">Số ký hiệu</label><input class="input w100" id="fgSo"
+                      placeholder="VD: 123/BC-DONVI" oninput="editGroupField('so', this.value)"></div>
+                  <div><label class="fieldlabel" for="fgNgay">Ngày ban hành</label><input class="input w100" id="fgNgay"
+                      placeholder="dd/mm/yyyy" oninput="editGroupField('ngay', this.value)"></div>
+                  <div><label class="fieldlabel" for="fgTrich">Trích yếu</label><input class="input w100" id="fgTrich"
+                      oninput="editGroupField('trichyeu', this.value)"></div>
                 </div>
-                <div class="notice" id="splitHint" style="margin-top:12px"></div>
-                <div style="margin-top:14px;flex-wrap:wrap" class="row" id="pageOps">
-                  <button class="btn small" onclick="rotatePages(90)"><i data-ic="rotate-cw"></i> Xoay
-                    90°</button><button class="btn small" onclick="rotatePages(270)"><i data-ic="rotate-ccw"></i> Xoay
-                    trái</button><button class="btn small" onclick="rotatePages(180)"><i data-ic="refresh-cw"></i>
-                    180°</button>
-                  <button class="btn small" onclick="movePage(-1)"><i data-ic="arrow-left"></i> Đổi vị
-                    trí</button><button class="btn small" onclick="movePage(1)">Đổi vị trí <i
+                <label class="fieldlabel mt" for="groupRename">Tên file</label>
+                <div class="row"><input class="input" id="groupRename" oninput="renameGroup(this.value)" disabled
+                    placeholder="Chưa có văn bản"><button class="btn small hidden" id="btnAutoName"
+                    onclick="restoreAutoName()" title="Dùng lại thông tin và tên đặt theo OCR"><i data-ic="undo-2"></i>
+                    Tên tự
+                    động</button><button class="btn small" id="btnExportOne"
+                    onclick="previewGroupExport([S.groups[S.selGroup]])" title="Chỉ xuất văn bản đang xem"><i
+                      data-ic="download"></i> Xuất riêng</button></div>
+              </div>
+              <div class="viewbar hidden" id="splitViewBar">
+                <div class="row">
+                  <button class="btn small" id="btnPrevPage" onclick="stepPage(-1)" title="Trang trước"><i
+                      data-ic="arrow-left"></i></button><span class="small" id="splitPageNo">-</span><button
+                    class="btn small" id="btnNextPage" onclick="stepPage(1)" title="Trang sau"><i
                       data-ic="arrow-right"></i></button>
-                  <button class="btn small" onclick="reversePages()"><i data-ic="arrow-up-down"></i> Đảo thứ tự</button>
-                  <button class="btn small" onclick="insertPages()"><i data-ic="file-plus"></i> Chèn trang từ
-                    file</button><button class="btn small" onclick="replacePage()"><i data-ic="replace"></i> Thay
-                    trang</button>
-                  <button class="btn small danger" onclick="deletePages()"><i data-ic="trash-2"></i> Xóa trang</button>
-                  <button class="btn small" onclick="saveSplitDoc()"><i data-ic="save"></i> Lưu PDF</button>
                 </div>
-                <div class="card cardpad" style="box-shadow:none;margin-top:16px" id="selectedCard">
-                  <div class="row between"><strong>Trang đang chọn: <span id="selectedPageNum">-</span></strong><span
-                      class="chip" id="selectedGroupName">-</span></div>
-                  <div class="divider"></div>
-                  <p class="small muted" id="pageExplainer">Chọn một trang để xem chi tiết.</p>
-                  <div class="row" style="flex-wrap:wrap"><button class="btn small" onclick="setBoundary()"><i
-                        data-ic="scissors"></i> Đặt điểm tách tại đây</button><button class="btn small"
-                      onclick="removeBoundary()"><i data-ic="undo-2"></i> Bỏ điểm tách</button><button class="btn small"
-                      onclick="previewPage()"><i data-ic="zoom-in"></i> Xem lớn</button></div>
+                <div class="row">
+                  <button class="btn small" onclick="splitZoom(-1)" title="Thu nhỏ"><i
+                      data-ic="minus"></i></button><button class="btn small ghost" id="splitZoomLabel"
+                    onclick="splitZoom(0)" title="Vừa khung">100%</button><button class="btn small"
+                    onclick="splitZoom(1)" title="Phóng to"><i data-ic="plus"></i></button>
                 </div>
-              </div>
-              <div>
-                <div class="card cardpad" style="box-shadow:none">
-                  <div id="sideManual" class="hidden">
-                    <label class="fieldlabel">Cách chia trang</label>
-                    <select class="select w100" id="manualMethod" onchange="renderManualInputs()">
-                      <option value="ranges">Theo khoảng trang (VD: 1-3, 4, 5-8)</option>
-                      <option value="every">Mỗi N trang một file</option>
-                      <option value="odd_even">Tách trang chẵn / lẻ</option>
-                      <option value="extract">Trích xuất các trang đang chọn</option>
-                    </select>
-                    <input class="input w100 mt" id="manualValue" placeholder="1-3, 4, 5-8">
-                    <button class="btn small mt" onclick="planManual()">Xem trước cách chia</button>
-                    <div class="divider"></div>
-                  </div>
-                  <div id="sideMerge" class="hidden">
-                    <label class="fieldlabel">Chọn tài liệu cần ghép (theo thứ tự)</label>
-                    <div id="mergeList"></div>
-                    <input class="input w100 mt" id="mergeName" placeholder="Tên file ghép" value="Tai_lieu_ghep.pdf">
-                    <div class="row mt" style="flex-wrap:wrap"><button class="btn small"
-                        onclick="addDocuments('split')"><i data-ic="plus"></i> Thêm file</button><button
-                        class="btn small primary" onclick="mergeDocs()"><i data-ic="merge"></i> Ghép thành 1 tài
-                        liệu</button></div>
-                    <div class="divider"></div>
-                  </div>
-                  <div id="sideBlank" class="hidden">
-                    <p class="small muted" style="margin-top:0">Tự tìm trang trắng hoặc trang có mã QR/barcode để làm
-                      điểm phân cách giữa các văn bản.</p>
-                    <div class="row" style="flex-wrap:wrap"><button class="btn small"
-                        onclick="planSeparator('blank')"><i data-ic="file"></i> Tách theo trang trắng</button><button
-                        class="btn small" onclick="planSeparator('code')"><i data-ic="qr-code"></i> Tách theo QR /
-                        barcode</button></div>
-                    <div class="divider"></div>
-                  </div>
-                  <div class="row between" style="margin-bottom:13px"><strong id="sideTitle">Văn bản AI phát
-                      hiện</strong><span class="chip" id="countDocs">0 nhóm</span></div>
-                  <div class="docitems" id="groups">
-                    <div class="empty small">Bấm “Phân tích tài liệu” để AI đề xuất điểm tách.</div>
-                  </div>
-                  <div class="divider"></div>
-                  <div id="splitSideTools">
-                    <label class="fieldlabel">Tên file của nhóm được chọn</label>
-                    <input class="input w100" id="groupRename" oninput="renameGroup(this.value)"
-                      placeholder="Tên văn bản…">
-                    <div class="row" style="margin-top:11px;flex-wrap:wrap"><button class="btn small"
-                        onclick="combineNext()"><i data-ic="merge"></i> Ghép nhóm sau</button><button class="btn small"
-                        onclick="setBoundary()"><i data-ic="scissors"></i> Tách tại trang chọn</button></div>
-                    <label class="small muted" style="display:block;margin-top:13px"><input type="checkbox"
-                        class="check" id="nameAuto" checked onchange="toggleAutoNames()"> Đặt tên file theo OCR</label>
-                    <label class="fieldlabel mt">Phân loại khi xuất</label>
-                    <select class="select w100" id="classifyBy">
-                      <option value="none">Không tạo thư mục con</option>
-                      <option value="type">Thư mục theo loại văn bản</option>
-                      <option value="agency">Thư mục theo cơ quan ban hành</option>
-                    </select>
-                    <label class="fieldlabel mt">Định dạng</label>
-                    <select class="select w100" id="groupFormat">
-                      <option value="pdf">PDF</option>
-                      <option value="searchable_pdf">PDF có lớp chữ (Searchable)</option>
-                      <option value="docx">Word DOCX</option>
-                      <option value="txt">TXT</option>
-                    </select>
-                  </div>
-                  <div class="divider"></div>
-                  <button class="btn primary w100" onclick="previewGroupExport()"><i data-ic="download"></i> Xem trước &
-                    xuất file riêng</button>
+                <div class="row">
+                  <button class="btn small" onclick="rotatePages(90)" title="Xoay 90°"><i data-ic="rotate-cw"></i> <span
+                      class="lbl">Xoay</span></button><button class="btn small" id="btnBoundary"
+                    onclick="toggleBoundary()"></button><button class="btn small" id="btnIsolate"
+                    onclick="isolatePages()"
+                    title="Biến các trang đang chọn thành một văn bản riêng. Giữ Ctrl hoặc Shift khi bấm trang để chọn nhiều trang"><i
+                      data-ic="file-plus"></i> <span class="lbl">Tách riêng</span></button><button class="btn small"
+                    id="btnCombine" onclick="combineNext()" title="Gộp văn bản đang chọn với văn bản ngay sau nó"><i
+                      data-ic="merge"></i> <span class="lbl">Ghép văn
+                      bản sau</span></button><button class="btn small danger" onclick="deletePages()"
+                    title="Xóa trang"><i data-ic="trash-2"></i></button>
                 </div>
               </div>
+              <div class="paperview" id="splitPaper">
+                <img id="splitPageImg" class="hidden" alt="Trang đang xem">
+                <div class="empty" id="splitEmpty">Chọn PDF hoặc ảnh để bắt đầu<br><br><button class="btn small"
+                    onclick="addDocuments('split')"><i data-ic="plus"></i> Chọn tài liệu</button></div>
+              </div>
+              <div class="whyline" id="splitWhy"></div>
+            </div>
+            <div class="pane">
+              <div class="panehead"><span>Trang</span><span class="muted small"
+                  title="Giữ Ctrl hoặc Shift khi bấm để chọn nhiều trang">Kéo để sắp xếp</span></div>
+              <div class="newdrop" id="newDocDrop"><i data-ic="file-plus"></i> Thả vào đây để tạo văn bản mới</div>
+              <div class="panebody" id="pageStrip"></div>
             </div>
           </div>
         </section>
@@ -371,8 +330,7 @@
         <section id="batch" class="page">
           <div class="heading">
             <div>
-              <h1>Xử lý hàng loạt</h1>
-              <p class="sub">Thiết lập hàng đợi OCR và tách tài liệu với nhiều file cùng lúc.</p>
+              <p class="sub">Xử lý nhiều tài liệu theo cùng một quy trình.</p>
             </div>
             <button class="btn primary" id="btnBatch" onclick="startBatch()"><i data-ic="play"></i> Chạy hàng
               đợi</button>
@@ -380,8 +338,7 @@
           <div class="grid cols2">
             <div class="card cardpad">
               <h3 style="margin-top:0">Danh sách tài liệu</h3>
-              <div id="batchDrop" class="drop" onclick="addBatchFiles()"><span class="bigicon"><i
-                    data-ic="cloud-upload"></i></span>
+              <div id="batchDrop" class="drop" onclick="addBatchFiles()">
                 <h3>Thêm file vào hàng đợi</h3>
                 <p>Kéo thả PDF, JPG, PNG, TIFF hoặc cả thư mục vào cửa sổ</p><span class="btn small"><i
                     data-ic="plus"></i> Chọn tài liệu</span>
@@ -399,26 +356,35 @@
                 <option value="ocr_searchable_pdf">OCR và xuất PDF có thể tìm kiếm</option>
                 <option value="ocr_xlsx">OCR và xuất Excel (bảng biểu)</option>
                 <option value="ocr_txt">OCR và xuất TXT</option>
-                <option value="split_ai">Tách văn bản AI + xuất PDF riêng</option>
-                <option value="split_blank">Chỉ tách PDF theo trang trắng</option>
+                <option value="pdf">Xuất PDF (không OCR)</option>
                 <option value="rename">Đổi tên file theo nội dung (số, ngày, trích yếu)</option>
               </select>
+              <label class="small" style="display:block;margin-top:13px"><input type="checkbox" class="check"
+                  id="batchSplit" onchange="toggleBatchSplit()"> Tách thành từng văn bản riêng</label>
               <label class="fieldlabel mt">Chất lượng nhận dạng</label>
               <select class="select w100" id="batchQuality">
                 <option value="fast">Nhanh · PP-OCRv6 + VietOCR</option>
                 <option value="auto">Tự động (đề xuất)</option>
                 <option value="accurate">Chính xác · PP-StructureV3 / PaddleOCR-VL</option>
               </select>
-              <label class="fieldlabel mt">Phân loại khi tách</label>
-              <select class="select w100" id="batchClassify">
-                <option value="none">Không</option>
-                <option value="type">Theo loại văn bản</option>
-                <option value="agency">Theo cơ quan ban hành</option>
-              </select>
+              <div id="batchSplitOpts" class="hidden">
+                <label class="fieldlabel mt">Cách tách</label>
+                <select class="select w100" id="batchSplitMode">
+                  <option value="ai">Tự động (AI nhận diện ranh giới văn bản)</option>
+                  <option value="blank">Theo trang trắng</option>
+                </select>
+                <label class="fieldlabel mt">Phân loại khi tách</label>
+                <select class="select w100" id="batchClassify">
+                  <option value="none">Không</option>
+                  <option value="type">Theo loại văn bản</option>
+                  <option value="agency">Theo cơ quan ban hành</option>
+                </select>
+                <p class="small muted">Mỗi văn bản xuất thành một file riêng. Với tác vụ đổi tên: xuất các PDF đặt tên
+                  theo nội dung, file gốc giữ nguyên.</p>
+              </div>
               <p class="small muted">Kết quả lưu tại: <span id="batchOut" class="mono"></span> <a href="#"
                   onclick="openOutput();return false">Mở thư mục</a></p>
-              <div class="notice">Các file được xử lý lần lượt (dùng chung bộ nhớ GPU/CPU). Có thể tạm dừng, tiếp tục
-                hoặc hủy bất cứ lúc nào.</div>
+              <p class="small muted">Tài liệu được xử lý lần lượt. Bạn có thể tạm dừng hoặc hủy.</p>
             </div>
           </div>
           <div class="card cardpad" style="margin-top:17px">
@@ -443,9 +409,7 @@
         <section id="history" class="page">
           <div class="heading">
             <div>
-              <h1>Lịch sử & Kết quả</h1>
-              <p class="sub">Tra cứu tài liệu đã xử lý theo tên hoặc nội dung OCR, mở lại, gắn nhãn, quản lý file kết
-                quả.</p>
+              <p class="sub">Tìm tài liệu đã xử lý và mở lại kết quả.</p>
             </div>
             <button class="btn" onclick="exportHistory()"><i data-ic="download"></i> Xuất danh sách CSV</button>
           </div>
@@ -456,7 +420,7 @@
               <div class="row"><select class="select" id="hKind" onchange="renderHistory()">
                   <option value="">Mọi loại tác vụ</option>
                   <option value="ocr">OCR tài liệu</option>
-                  <option value="split">Tách AI</option>
+                  <option value="split">Tách tài liệu</option>
                   <option value="batch">Hàng loạt</option>
                   <option value="pdf">Cắt / ghép PDF</option>
                 </select>
@@ -481,7 +445,7 @@
                     <th>Loại tác vụ</th>
                     <th>Số trang</th>
                     <th>Thời gian</th>
-                    <th>Engine / Tin cậy</th>
+                    <th>Nhận dạng</th>
                     <th>Trạng thái</th>
                     <th>Thao tác</th>
                   </tr>
@@ -496,18 +460,15 @@
         <section id="models" class="page">
           <div class="heading">
             <div>
-              <h1>Quản lý mô hình AI</h1>
-              <p class="sub">Trạng thái, dung lượng và nạp/giải phóng model. Model lớn được nạp luân phiên để vừa GPU 8
-                GB.</p>
+              <p class="sub">Quản lý các mô hình nhận dạng đã cài trên máy.</p>
             </div>
-            <div class="actions"><span class="pill" id="modelDevice">-</span><button class="btn"
-                onclick="importModel()"><i data-ic="import"></i> Nhập model offline</button></div>
+            <div class="actions"><button class="btn" onclick="importModel()"><i data-ic="import"></i> Nhập mô
+                hình</button></div>
           </div>
           <div class="card cardpad" style="margin-bottom:17px">
             <div class="row between" style="flex-wrap:wrap">
-              <div><strong>Model mặc định</strong>
-                <p class="small muted" style="margin:5px 0 0">Dùng khi bấm “Bắt đầu OCR” (có thể đổi tạm ở màn hình
-                  OCR).</p>
+              <div><strong>Mô hình mặc định</strong>
+                <p class="small muted" style="margin:5px 0 0">Có thể đổi cho từng tài liệu ở màn hình OCR.</p>
               </div>
               <select class="select" id="defaultEngine" onchange="saveSettings({engine:this.value})"></select>
             </div>
@@ -515,16 +476,14 @@
             <div id="vramBox"></div>
           </div>
           <div class="grid cols2" id="modelCards"></div>
-          <div class="notice" id="modelNotice" style="margin-top:17px">Chỉ PP-StructureV3 hoặc PaddleOCR-VL được giữ
-            trong bộ nhớ tại một thời điểm; khi chuyển chế độ, model không dùng sẽ tự giải phóng.</div>
+          <div class="notice hidden" id="modelNotice" style="margin-top:17px"></div>
         </section>
 
         <!-- ========================= CÀI ĐẶT ========================= -->
         <section id="settings" class="page">
           <div class="heading">
             <div>
-              <h1>Cài đặt ứng dụng</h1>
-              <p class="sub">Cấu hình lưu trữ, OCR, quy tắc tách và quyền riêng tư. Thay đổi được lưu ngay.</p>
+              <p class="sub">Các thay đổi được lưu tự động.</p>
             </div>
             <div class="actions"><button class="btn" onclick="backupSettings()"><i data-ic="download"></i> Sao lưu cấu
                 hình</button><button class="btn" onclick="restoreSettings()"><i data-ic="upload"></i> Khôi
@@ -533,7 +492,7 @@
           </div>
           <div class="grid cols2">
             <div class="card cardpad">
-              <h3><i data-ic="folder"></i> Thư mục & Đầu ra</h3>
+              <h3>Thư mục & Đầu ra</h3>
               <label class="fieldlabel">Thư mục lưu kết quả</label>
               <div class="row"><input class="input" style="flex:1" id="sOutput" data-key="output_dir"><button
                   class="btn small" onclick="pickOutput()">Chọn…</button></div>
@@ -549,6 +508,16 @@
               <input class="input w100 mono" data-key="naming_rule">
               <p class="small muted">Dùng: <span class="kbd">{loai}</span> <span class="kbd">{coquan}</span> <span
                   class="kbd">{so}</span> <span class="kbd">{ngay}</span> <span class="kbd">{trichyeu}</span></p>
+              <label class="fieldlabel mt">Ký tự thay cho dấu /</label>
+              <input class="input w100 mono" data-key="slash_replacement">
+              <p class="small muted">Áp dụng cho số ký hiệu, ngày và trích yếu, ví dụ 123/BC-DONVI thành 123-BC-DONVI.
+                Để trống
+                thì bỏ dấu /. Không dùng được các ký tự Windows cấm: <span class="kbd">\ / : * ? &quot; &lt; &gt;
+                  |</span></p>
+              <p><label><input type="checkbox" class="check" data-key="filename_ascii"> Tên file không dấu, trích yếu
+                  viết liền</label></p>
+              <p class="small muted">Bật: 56-BC-CAT_19-10-2026_QuyetDinhBoNhiemKyThuatVien. Tắt: giữ nguyên như trích yếu,
+                56-BC-CAT_19-10-2026_Quyết định bổ nhiệm kỹ thuật viên. Các ô thông tin luôn giữ tiếng Việt có dấu.</p>
               <p><label><input type="checkbox" class="check" data-key="folder_by_date"> Tự động tạo thư mục theo
                   ngày</label></p>
               <p><label><input type="checkbox" class="check" data-key="keep_original"> Giữ bản gốc sau xử lý</label></p>
@@ -556,7 +525,7 @@
                   tự thêm (1), (2)…)</label></p>
             </div>
             <div class="card cardpad">
-              <h3><i data-ic="scan-text"></i> Nhận dạng OCR</h3>
+              <h3>Nhận dạng OCR</h3>
               <div class="grid cols2">
                 <div><label class="fieldlabel">Độ phân giải (DPI)</label><select class="select w100" data-key="dpi"
                     data-type="int">
@@ -579,12 +548,26 @@
               <p><label><input type="checkbox" class="check" data-key="auto_rotate"> Tự xoay hướng trang</label></p>
               <p><label><input type="checkbox" class="check" data-key="deskew"> Làm thẳng trang nghiêng</label></p>
               <p><label><input type="checkbox" class="check" data-key="denoise"> Giảm nhiễu ảnh scan</label></p>
+              <label class="fieldlabel mt">Tăng độ đậm chữ</label>
+              <select class="select w100" data-key="ink_boost">
+                <option value="off">Tắt</option>
+                <option value="light">Nhẹ (bản scan xám, nhạt đều)</option>
+                <option value="strong">Mạnh (bản photo mờ, mực nhạt)</option>
+              </select>
+              <label class="fieldlabel mt">Chế độ màu</label>
+              <select class="select w100" data-key="color_mode">
+                <option value="keep">Giữ nguyên (khuyên dùng)</option>
+                <option value="gray">Xám</option>
+                <option value="vivid">Tăng màu</option>
+                <option value="bw">Trắng đen (có thể làm sai dấu, sai số)</option>
+              </select>
+              <p class="small muted">Chỉ áp dụng cho ảnh đưa vào OCR, file PDF xuất ra vẫn giữ ảnh gốc.</p>
               <label class="fieldlabel mt">Ngưỡng độ tin cậy OCR (dưới mức này đánh dấu cần kiểm tra)</label>
               <input type="range" min="50" max="99" data-key="ocr_threshold" data-type="int" class="w100"
                 oninput="this.nextElementSibling.textContent=this.value+'%'"><strong></strong>
             </div>
             <div class="card cardpad">
-              <h3><i data-ic="scissors"></i> Quy tắc tách AI</h3>
+              <h3>Quy tắc tách tài liệu</h3>
               <label class="fieldlabel">Ngưỡng tin cậy - điểm tách thấp hơn được đánh dấu nghi vấn</label>
               <input type="range" min="50" max="99" data-key="split_threshold" data-type="int" class="w100"
                 oninput="this.nextElementSibling.textContent=this.value+'%'"><strong></strong>
@@ -596,9 +579,9 @@
                   xuất</label></p>
             </div>
             <div class="card cardpad">
-              <h3><i data-ic="shield-check"></i> Bảo mật & Dữ liệu</h3>
-              <p><label><input type="checkbox" class="check" checked disabled> Không sử dụng cloud / API bên ngoài (luôn
-                  bật)</label></p>
+              <h3>Bảo mật & Dữ liệu</h3>
+              <p><label><input type="checkbox" class="check" checked disabled> Xử lý trên máy, không gửi tài liệu ra
+                  ngoài</label></p>
               <p><label><input type="checkbox" class="check" data-key="no_ocr_log"> Không ghi nội dung OCR vào
                   log</label></p>
               <p><label><input type="checkbox" class="check" data-key="clean_temp"> Xóa ảnh tạm khi đóng tài
@@ -609,18 +592,18 @@
                   file tạm ngay</button></div>
             </div>
             <div class="card cardpad">
-              <h3><i data-ic="palette"></i> Giao diện</h3>
+              <h3>Giao diện</h3>
               <label class="fieldlabel">Kiểu hiển thị</label>
-              <select class="select w100" data-key="theme" onchange="applyTheme(this.value)">
-                <option value="light">Sáng (Light)</option>
-                <option value="dark">Tối (Dark)</option>
+              <select class="select w100" data-key="theme">
+                <option value="light">Sáng</option>
+                <option value="dark">Tối</option>
               </select>
               <label class="fieldlabel mt">Ngôn ngữ</label><select class="select w100" disabled>
                 <option>Tiếng Việt</option>
               </select>
             </div>
             <div class="card cardpad">
-              <h3><i data-ic="info"></i> Giới thiệu & Bản quyền</h3>
+              <h3>Giới thiệu & Bản quyền</h3>
               <div id="aboutBox"></div>
               <div class="row mt"><button class="btn small primary" onclick="openLicense()"><i data-ic="key-round"></i>
                   Quản lý bản quyền</button></div>
@@ -629,13 +612,12 @@
         </section>
 
       </div>
-      <footer class="footerbar"><span id="footerLeft"><i data-ic="wifi-off"></i> OfflineOCR Studio - xử lý hoàn toàn
-          offline</span><span class="row"><span id="footerInfo">Đang khởi động…</span><span class="miniprog hidden"
-            id="footerProg"><span></span></span><button class="btn small ghost hidden" id="footerCancel"><i
-              data-ic="square"></i> Hủy</button></span></footer>
+      <footer class="footerbar"><span id="footerLeft"></span><span class="row"><span id="footerInfo">Đang khởi
+            động…</span><span class="miniprog hidden" id="footerProg"><span></span></span><button
+            class="btn small ghost hidden" id="footerCancel"><i data-ic="square"></i> Hủy</button></span></footer>
     </div>
   </div>
-  <div id="toast" class="toast"></div>
+  <div id="toast" class="toast" role="status"></div>
   <div id="dropOverlay" class="dropoverlay">
     <div><i data-ic="file-down"></i> Thả file vào đây</div>
   </div>

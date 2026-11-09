@@ -21,7 +21,8 @@ from core.document import SUPPORTED_EXTS, Document, new_workspace, short_stem, u
 from core.jobs import Cancelled, JobManager
 from core.settings import Settings
 from utils import license_utils as lic
-from utils.ocr_engine import ENGINES, QUALITY, OcrService
+from utils.ocr_engine import ENGINES, QUALITY
+from core.ocr_worker import OcrWorker
 
 DOC_FILTER = ("Tài liệu (*.pdf;*.png;*.jpg;*.jpeg;*.tif;*.tiff;*.bmp;*.webp)", "Tất cả (*.*)")
 
@@ -45,7 +46,7 @@ class Api:
         self._settings = Settings()
         self._history = history.History()
         self._history.purge(self._settings.get("history_days"))
-        self._ocr = OcrService(self._settings.get("device"))
+        self._ocr = OcrWorker(self._settings.get("device"))
         self._jobs = JobManager()
         self._docs = {}
         self._workspace = new_workspace()
@@ -58,6 +59,9 @@ class Api:
     # ==================================================
     # Nội bộ
     # ==================================================
+    def _close(self):
+        self._ocr.close()
+
     def _set_window(self, window):
         self._window = window
 
@@ -72,9 +76,14 @@ class Api:
         return doc
 
     def _warmup_job(self, job):
-        self._engine_label = self._ocr.warmup(lambda m: job.update(message=m))
+        self._engine_label = self._ocr.warmup(lambda m: job.update(message=m), check_cancel=job.check_cancelled)
         job.message = f"Sẵn sàng · {self._engine_label}"
         return {"engine": self._engine_label}
+
+    def _file_name(self, fields):
+        return metadata.build_filename(fields, self._settings.get("naming_rule"),
+                                       slash=self._settings.get("slash_replacement"),
+                                       ascii_name=self._settings.get("filename_ascii"))
 
     def _output_dir(self, sub=""):
         base = self._settings.get("output_dir") or config.DEFAULT_OUTPUT_DIR
@@ -177,8 +186,7 @@ class Api:
 
     @_safe
     def job_cancel(self, job_id):
-        self._jobs.cancel(job_id)
-        return True
+        return self._jobs.cancel(job_id)
 
     @_safe
     def job_pause(self, job_id):
@@ -249,12 +257,13 @@ class Api:
         return [{"uid": p.uid, "src": doc.thumbnail(p)} for p in pages]
 
     @_safe
-    def page_image(self, doc_id, uid, max_side=1600):
-        """Ảnh trang để xem: nếu đã OCR thì trả ảnh đã tiền xử lý (khung tọa độ OCR khớp ảnh này)."""
+    def page_image(self, doc_id, uid, max_side=1600, original=False):
+        """Ảnh trang để xem: nếu đã OCR thì trả ảnh đã tiền xử lý (khung tọa độ OCR khớp ảnh này).
+        original=True: luôn trả ảnh như khi xuất file."""
         doc = self._doc(doc_id)
         page = doc.page(uid)
         from PIL import Image
-        if uid in doc.ocr_images and os.path.exists(doc.ocr_images[uid]):
+        if not original and uid in doc.ocr_images and os.path.exists(doc.ocr_images[uid]):
             img = Image.open(doc.ocr_images[uid])
         else:
             img, _ = doc.render(page, self._settings.get("dpi"))
@@ -278,10 +287,12 @@ class Api:
     # ==================================================
     def _prepare_page(self, doc, page, opts, job=None):
         """Dựng ảnh trang + tiền xử lý (xoay hướng, làm thẳng, giảm nhiễu). Trả về đường dẫn ảnh."""
+        if job:
+            job.check()
         dpi = int(opts.get("dpi") or self._settings.get("dpi"))
         img, _ = doc.render(page, dpi)
         if opts.get("auto_rotate", self._settings.get("auto_rotate")):
-            angle = self._ocr.detect_orientation(img)
+            angle = self._ocr.detect_orientation(img, check_cancel=job.check_cancelled if job else None)
             if angle:
                 # Xoay luôn trang trong tài liệu để file xuất ra cũng đứng thẳng
                 page.rotation = (page.rotation + 360 - angle) % 360
@@ -290,7 +301,11 @@ class Api:
             img, _a = imaging.deskew(img)
         if opts.get("denoise", self._settings.get("denoise")):
             img = imaging.denoise(img)
+        img = imaging.boost_ink(img, opts.get("ink_boost", self._settings.get("ink_boost")))
+        img = imaging.apply_color_mode(img, opts.get("color_mode", self._settings.get("color_mode")))
         path = os.path.join(doc.cache_dir, f"ocr_{page.uid}.png")
+        if job:
+            job.check()
         img.save(path)
         doc.ocr_images[page.uid] = path
         return path
@@ -304,12 +319,16 @@ class Api:
             pos = doc.pages.index(page) + 1
             job.update(base + span * n / max(1, len(pages)), f"{doc.name} · trang {pos}/{len(doc.pages)}")
             path = self._prepare_page(doc, page, opts, job)
+            job.check()
             res = self._ocr.recognize(
                 path, quality=quality, engine=engine,
-                progress=lambda m, pos=pos: job.update(message=f"Trang {pos}: {m}"))
+                progress=lambda m, pos=pos: job.update(message=f"Trang {pos}: {m}"),
+                check_cancel=job.check_cancelled)
+            job.check()
             doc.ocr[page.uid] = res.to_dict()
             doc.edits.pop(page.uid, None)
             self._push({"type": "page_ocr", "doc_id": doc.id, "uid": page.uid})
+        job.check()
         return pages
 
     @_safe
@@ -422,11 +441,11 @@ class Api:
         meta = metadata.extract_metadata(doc.page_text(first.uid)) if first else {}
         fields = metadata.meta_to_fields(meta) if meta else {}
         return {"meta": meta, "fields": fields,
-                "filename": metadata.build_filename(fields, self._settings.get("naming_rule")) if fields else ""}
+                "filename": self._file_name(fields) if fields else ""}
 
     @_safe
     def build_filename(self, fields):
-        return metadata.build_filename(fields, self._settings.get("naming_rule"))
+        return self._file_name(fields)
 
     @_safe
     def rename_source(self, doc_id, new_name):
@@ -614,8 +633,10 @@ class Api:
         doc.groups = groups
         return {"groups": groups, "pages": doc.summary()["pages"]}
 
-    def _detect_separators(self, doc, need_codes=False):
+    def _detect_separators(self, doc, need_codes=False, job=None):
         for p in doc.pages:
+            if job:
+                job.check()
             if p.blank is None or (need_codes and p.codes is None):
                 img, _ = doc.render(p, 100 if need_codes else 48)
                 if p.blank is None:
@@ -634,10 +655,11 @@ class Api:
         def run(job):
             start = time.time()
             job.update(0.02, "Đang tìm trang trắng và mã phân cách")
-            self._detect_separators(doc, need_codes=True)
+            self._detect_separators(doc, need_codes=True, job=job)
             todo = [p.uid for p in doc.pages if p.uid not in doc.ocr and not p.blank and not p.codes]
             if todo:
                 self._ocr_pages(job, doc, todo, {"quality": "fast", "engine": "fast", **opts}, 0.05, 0.9)
+            job.check()
             job.update(0.97, "AI đang phân tích ranh giới văn bản")
             groups = splitter.analyze(doc, self._settings.all())
             self._history.add("split", doc.name, doc.path, len(doc.pages), "done", time.time() - start,
@@ -688,7 +710,8 @@ class Api:
             exporters.export(fmt, self._export_pages(doc, set(g["uids"])), path, doc)
             outputs.append(path)
         self._history.add("split", doc.name, doc.path, len(doc.pages), detail=f"Xuất {len(outputs)} văn bản",
-                          outputs=outputs, doc_count=len(outputs))
+                          outputs=outputs, doc_count=len(outputs),
+                          text="\n\n".join(doc.page_text(p.uid) for p in doc.pages))
         return {"folder": folder, "outputs": outputs}
 
     @_safe
@@ -710,13 +733,20 @@ class Api:
     # ==================================================
     @_safe
     def batch_start(self, files, task="ocr_docx", opts=None):
-        """task: ocr_docx | ocr_searchable_pdf | ocr_txt | ocr_xlsx | split_ai | split_blank | rename"""
+        """task: ocr_docx | ocr_searchable_pdf | ocr_txt | ocr_xlsx | pdf | rename
+        opts["split"]: none | ai | blank - tách từng file thành nhiều văn bản rồi mới làm tác vụ trên mỗi văn bản.
+        rename + tách: xuất các PDF đặt tên theo nội dung, không đổi tên file gốc."""
         opts = opts or {}
         paths = self._expand(files)
         if not paths:
             return {"error": "Chưa có file nào trong hàng đợi"}
         fmt = {"ocr_docx": "docx", "ocr_searchable_pdf": "searchable_pdf", "ocr_txt": "txt",
-               "ocr_xlsx": "xlsx"}.get(task)
+               "ocr_xlsx": "xlsx"}.get(task, "pdf")
+        split = opts.get("split", "none")
+        classify = opts.get("classify", "none")
+        # Tác vụ pdf chỉ cần OCR khi phải đọc nội dung để tách hoặc phân loại
+        need_ocr = task != "pdf" or split == "ai" or (split == "blank" and classify != "none")
+        ocr_opts = {"quality": "fast", "engine": "fast", **opts} if task == "pdf" else opts
 
         def run(job):
             job.items = [{"name": os.path.basename(p), "path": p, "status": "queued", "message": ""} for p in paths]
@@ -737,27 +767,38 @@ class Api:
 
                         def check(_):
                             job.check()
+
+                        def check_cancelled(_):
+                            job.check_cancelled()
                     sub = Sub()
                     outputs = []
-                    if task in ("split_ai", "split_blank"):
-                        if task == "split_blank":
-                            self.split_plan(doc.id, "blank")
-                            groups = doc.groups
-                        else:
-                            self._detect_separators(doc, need_codes=True)
-                            todo = [p.uid for p in doc.pages if not p.blank and not p.codes]
-                            self._ocr_pages(sub, doc, todo, {"quality": "fast", "engine": "fast", **opts})
+                    if split != "none":
+                        self._detect_separators(doc, need_codes=split == "ai", job=job)
+                    if need_ocr:   # khi tách: bỏ qua trang trắng và trang mã phân cách
+                        todo = [p.uid for p in doc.pages if not p.blank and not p.codes]
+                        self._ocr_pages(sub, doc, todo, ocr_opts)
+                    if split != "none":
+                        if split == "ai":
                             groups = splitter.analyze(doc, self._settings.all())
-                        res = self.export_groups(doc.id, groups, "pdf",
-                                                 opts.get("classify", "none"),
+                        else:
+                            plan = self.split_plan(doc.id, "blank")
+                            if plan.get("error"):
+                                raise RuntimeError(plan["error"])
+                            groups = doc.groups
+                            if need_ocr:   # đã có OCR: đặt tên và phân loại theo nội dung như khi tách tự động
+                                groups = splitter.set_boundaries(doc, [g["start_uid"] for g in groups],
+                                                                 self._settings.all())
+                        job.check()
+                        res = self.export_groups(doc.id, groups, fmt, classify,
                                                  os.path.join(out_root, short_stem(doc.name, 60)))
-                        outputs = res.get("outputs", [])
+                        if res.get("error"):
+                            raise RuntimeError(res["error"])
+                        outputs = res["outputs"]
                         item["message"] = f"{len(outputs)} văn bản"
                     else:
-                        self._ocr_pages(sub, doc, [p.uid for p in doc.pages], opts)
                         if task == "rename":
                             fields = self.doc_metadata(doc.id).get("fields") or {}
-                            name = metadata.build_filename(fields, self._settings.get("naming_rule"))
+                            name = self._file_name(fields)
                             res = self.rename_source(doc.id, name) if name else {"ok": False, "message": "Không đủ thông tin"}
                             if not res.get("ok"):
                                 raise RuntimeError(res.get("message"))
@@ -792,7 +833,7 @@ class Api:
             job.message = f"Hoàn tất {done}/{len(paths)} file" + (f" · {errors} lỗi" if errors else "")
             return {"folder": out_root, "done": done, "errors": errors}
 
-        job = self._jobs.submit("batch", f"Hàng loạt · {len(paths)} file", run, {"task": task})
+        job = self._jobs.submit("batch", f"Hàng loạt · {len(paths)} file", run, {"task": task, "opts": opts})
         return {"job_id": job.id, "count": len(paths)}
 
     @_safe
@@ -801,7 +842,7 @@ class Api:
         if not job:
             return {"error": "Không tìm thấy tác vụ"}
         failed = [it["path"] for it in job.items if it["status"] in ("error", "cancelled", "queued")]
-        return self.batch_start(failed, job.meta.get("task", "ocr_docx"))
+        return self.batch_start(failed, job.meta.get("task", "ocr_docx"), job.meta.get("opts"))
 
     # ==================================================
     # Lịch sử
@@ -872,7 +913,7 @@ class Api:
     @_safe
     def model_load(self, key):
         def run(job):
-            ok = self._ocr.load(key, lambda m: job.update(message=m))
+            ok = self._ocr.load(key, lambda m: job.update(message=m), check_cancel=job.check_cancelled)
             job.message = "Đã nạp mô hình" if ok else "Không nạp được mô hình (thiếu file?)"
             return {"ok": ok}
         job = self._jobs.submit("model", f"Nạp mô hình · {key}", run)

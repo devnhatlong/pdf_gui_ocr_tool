@@ -1,0 +1,6 @@
+*
+!.gitignore
+!README.md
+!run_deepseek_trial.py
+!run_trial.ps1
+!requirements-lock.txt

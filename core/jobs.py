@@ -22,7 +22,7 @@ class Job:
         self.title = title
         self.fn = fn
         self.meta = meta or {}
-        self.status = "queued"     # queued | running | paused | done | error | cancelled
+        self.status = "queued"     # queued | running | paused | cancelling | done | error | cancelled
         self.progress = 0.0
         self.message = "Đang chờ"
         self.result = None
@@ -37,23 +37,34 @@ class Job:
 
     # --- gọi từ trong tác vụ ---
     def update(self, progress=None, message=None, **items):
-        if progress is not None:
-            self.progress = max(0.0, min(1.0, progress))
-        if message is not None:
-            self.message = message
-        self._manager._touch(self)
+        with self._manager._lock:
+            if self._cancel.is_set():
+                return
+            if progress is not None:
+                self.progress = max(0.0, min(1.0, progress))
+            if message is not None:
+                self.message = message
+            self._manager._touch_locked(self)
+
+    def check_cancelled(self):
+        """Safe to poll during inference; pausing remains at page boundaries."""
+        if self._cancel.is_set():
+            raise Cancelled()
 
     def check(self):
         """Gọi định kỳ trong tác vụ: dừng nếu bị hủy, chờ nếu đang tạm dừng."""
+        self.check_cancelled()
         if not self._resume.is_set():
-            self.status = "paused"
-            self._manager._touch(self)
+            with self._manager._lock:
+                self.check_cancelled()
+                self.status = "paused"
+                self._manager._touch_locked(self)
             self._resume.wait()
-            if not self._cancel.is_set():
+            with self._manager._lock:
+                self.check_cancelled()
                 self.status = "running"
-                self._manager._touch(self)
-        if self._cancel.is_set():
-            raise Cancelled()
+                self._manager._touch_locked(self)
+        self.check_cancelled()
 
     def to_dict(self):
         return {"id": self.id, "kind": self.kind, "title": self.title, "status": self.status,
@@ -80,62 +91,91 @@ class JobManager:
 
     def _touch(self, job):
         with self._lock:
-            self._version += 1
-            job.version = self._version
+            self._touch_locked(job)
+
+    def _touch_locked(self, job):
+        self._version += 1
+        job.version = self._version
+
+    def _cancelled_locked(self, job):
+        job.status = "cancelled"
+        job.message = "Đã hủy"
+        job.result = None
+        job.error = None
+        for item in job.items:
+            if item["status"] in ("running", "queued", "paused"):
+                item.update(status="cancelled", message="Đã hủy")
 
     def _run(self):
         while True:
             job = self._queue.get()
-            if job._cancel.is_set():
-                job.status = "cancelled"
-                self._touch(job)
-                continue
-            job.status = "running"
-            job.message = "Đang xử lý"
-            self._touch(job)
+            with self._lock:
+                if job._cancel.is_set():
+                    self._cancelled_locked(job)
+                    self._touch_locked(job)
+                    continue
+                job.status = "running"
+                job.message = "Đang xử lý"
+                self._touch_locked(job)
             try:
-                job.result = job.fn(job)
-                job.status = "done"
-                job.progress = 1.0
-                if job.message in ("Đang xử lý", "Đang chờ"):
-                    job.message = "Hoàn thành"
+                result = job.fn(job)
+                with self._lock:
+                    if job._cancel.is_set():
+                        self._cancelled_locked(job)
+                    else:
+                        job.result = result
+                        job.status = "done"
+                        job.progress = 1.0
+                        if job.message in ("Đang xử lý", "Đang chờ"):
+                            job.message = "Hoàn thành"
             except Cancelled:
-                job.status = "cancelled"
-                job.message = "Đã hủy"
+                with self._lock:
+                    self._cancelled_locked(job)
             except Exception as e:
-                job.status = "error"
-                job.error = str(e)
-                job.message = f"Lỗi: {e}"
-                job.meta["trace"] = traceback.format_exc()
+                with self._lock:
+                    if job._cancel.is_set():
+                        self._cancelled_locked(job)
+                    else:
+                        job.status = "error"
+                        job.error = str(e)
+                        job.message = f"Lỗi: {e}"
+                        job.meta["trace"] = traceback.format_exc()
             self._touch(job)
 
     def get(self, job_id):
         return self._jobs.get(job_id)
 
     def cancel(self, job_id):
-        job = self._jobs.get(job_id)
-        if job:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if not job or job.status not in ("queued", "running", "paused", "cancelling"):
+                return False
             job._cancel.set()
             job._resume.set()
             if job.status == "queued":
-                job.status = "cancelled"
-                job.message = "Đã hủy"
-            self._touch(job)
+                self._cancelled_locked(job)
+            else:
+                job.status = "cancelling"
+                job.message = "Đang hủy…"
+            self._touch_locked(job)
+            return True
 
     def pause(self, job_id):
-        job = self._jobs.get(job_id)
-        if job and job.status in ("queued", "running"):
-            job._resume.clear()
-            job.message = "Đang tạm dừng…"
-            self._touch(job)
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job and job.status in ("queued", "running"):
+                job._resume.clear()
+                job.message = "Đang tạm dừng…"
+                self._touch_locked(job)
 
     def resume(self, job_id):
-        job = self._jobs.get(job_id)
-        if job:
-            job._resume.set()
-            if job.status == "paused":
-                job.status = "running"
-            self._touch(job)
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job and job.status in ("queued", "running", "paused"):
+                job._resume.set()
+                if job.status == "paused":
+                    job.status = "running"
+                self._touch_locked(job)
 
     def changes(self, since):
         with self._lock:
@@ -143,4 +183,5 @@ class JobManager:
             return self._version, [j.to_dict() for j in jobs]
 
     def busy(self):
-        return any(j.status in ("queued", "running", "paused") for j in self._jobs.values())
+        with self._lock:
+            return any(j.status in ("queued", "running", "paused", "cancelling") for j in self._jobs.values())

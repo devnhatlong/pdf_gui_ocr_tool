@@ -20,6 +20,7 @@ python-docx
 openpyxl
 reportlab
 psutil
+cryptography   # kiểm tra License Key (Ed25519)
 
 # PaddlePaddle 3.3.x lỗi oneDNN trên CPU (ConvertPirAttribute2RuntimeAttribute) -> dùng 3.2.2.
 # Máy có GPU NVIDIA: thay bằng paddlepaddle-gpu==3.2.2 theo hướng dẫn tại paddlepaddle.org.cn

@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//d/Project/DesktopApp/license_tool/**)",
+      "Read(//d/Project/WebApp/giapha-app/backend/**)",
+      "Bash(.venv/Scripts/python keygen.py --show)",
+      "Bash(.venv/Scripts/python -c ' *)",
+      "Bash(.venv/Scripts/python -m pip show cryptography)",
+      "Bash(PYTHONIOENCODING=utf-8 .venv/Scripts/python -m unittest tests.test_license)",
+      "Bash(PYTHONIOENCODING=utf-8 .venv/Scripts/python -c \"from utils.license_utils import PRODUCTS; print\\(PRODUCTS\\)\")",
+      "Bash(.venv/Scripts/python -)",
+      "Bash(sed -n '/^def _safe/,/^$/p' core/api.py)",
+      "Bash(sed -n '/def _ocr_pages/,/^    @_safe/p;/def _export_pages/,/^    @_safe/p' core/api.py)",
+      "Bash(sed -n '/^def export/,$p' core/exporters.py)",
+      "Bash(export TEMP='D:\\\\Temp\\\\Codex' TMP='D:\\\\Temp\\\\Codex' PYTHONIOENCODING=utf-8)",
+      "Bash(.venv/Scripts/python -m unittest tests.test_batch_split)",
+      "Bash(node --check web/app.js)",
+      "Bash(.venv/Scripts/python -W ignore -m unittest discover -s tests)",
+      "Bash(sed -n '/^def _summary_part/,/^def build_filename/p' core/metadata.py)",
+      "Bash(PYTHONIOENCODING=utf-8 .venv/Scripts/python -c ' *)",
+      "Bash(sed -n '/^def detect_agency/,/^def extract_metadata/p' core/metadata.py)",
+      "Bash(grep -n \"đ\")",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\PV01\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--Project-DesktopApp-pdf-gui-ocr-tool\\\\40f1fb7e-3b87-4a7e-860e-7ece11ca0903\\\\scratchpad\" -Recurse | Select-Object FullName, Length, LastWriteTime | Format-Table -AutoSize | Out-String -Width 220; Select-String -Path \"C:\\\\Users\\\\PV01\\\\.claude\\\\projects\\\\d--Project-DesktopApp-pdf-gui-ocr-tool\\\\40f1fb7e-3b87-4a7e-860e-7ece11ca0903.jsonl\" -Pattern 'try_boost\\\\.py[^\"]{0,200}' -AllMatches | ForEach-Object { $_.Matches.Value } | Select-Object -Last 6)",
+      "PowerShell(New-Item -ItemType Directory -Force D:\\\\Temp\\\\Codex | Out-Null; $env:TEMP='D:\\\\Temp\\\\Codex'; $env:TMP='D:\\\\Temp\\\\Codex'; $env:PYTHONIOENCODING='utf-8'; $py = if \\(Test-Path .venv\\\\Scripts\\\\python.exe\\) { '.venv\\\\Scripts\\\\python.exe' } elseif \\(Test-Path venv\\\\Scripts\\\\python.exe\\) { 'venv\\\\Scripts\\\\python.exe' } else { 'python' }; $s='C:\\\\Users\\\\PV01\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--Project-DesktopApp-pdf-gui-ocr-tool\\\\40f1fb7e-3b87-4a7e-860e-7ece11ca0903\\\\scratchpad'; & $py \"$s\\\\try_bw.py\" \"$s\\\\b_0_off.png\" $s)",
+      "PowerShell($env:TEMP='D:\\\\Temp\\\\Codex'; $env:TMP='D:\\\\Temp\\\\Codex'; $env:PYTHONIOENCODING='utf-8'; .venv\\\\Scripts\\\\python.exe -m unittest discover -s tests 2>&1 | Select-Object -Last 12)",
+      "PowerShell(\\(Get-Content web\\\\index.html\\).Count; \\(Get-Content web\\\\app.js\\).Count; \\(Get-Content web\\\\style.css\\).Count; \\(Get-Content web\\\\theme.css\\).Count; \\(Get-Content core\\\\splitter.py\\).Count)",
+      "PowerShell($env:PYTHONIOENCODING='utf-8'; $s='C:\\\\Users\\\\PV01\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--Project-DesktopApp-pdf-gui-ocr-tool\\\\40f1fb7e-3b87-4a7e-860e-7ece11ca0903\\\\scratchpad'; .venv\\\\Scripts\\\\python.exe \"$s\\\\splice.py\" \\(Get-Location\\).Path; git diff --stat -- web core/api.py | Select-Object -Last 6; node --check web/app.js; if \\($?\\) { 'js syntax ok' })",
+      "PowerShell(.venv\\\\Scripts\\\\python.exe -c \"import importlib.util as u; print\\({m: bool\\(u.find_spec\\(m\\)\\) for m in ['playwright','selenium','websocket','websockets','pypdfium2']}\\)\")",
+      "PowerShell(.venv\\\\Scripts\\\\python.exe -c \"import pypdfium2 as p; [print\\(f, len\\(p.PdfDocument\\(f\\)\\)\\) for f in [r'D:\\\\Project\\\\DesktopApp\\\\Data_test\\\\all\\\\Scan_0001.pdf', r'D:\\\\Project\\\\DesktopApp\\\\Data_test\\\\file\\\\Scan_0001.pdf']]\")",
+      "PowerShell(New-Item -ItemType Directory -Force D:\\\\Temp\\\\Codex\\\\split_ui | Out-Null; $env:TEMP='D:\\\\Temp\\\\Codex'; $env:TMP='D:\\\\Temp\\\\Codex'; $env:PYTHONIOENCODING='utf-8'; node --version; $s='C:\\\\Users\\\\PV01\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--Project-DesktopApp-pdf-gui-ocr-tool\\\\40f1fb7e-3b87-4a7e-860e-7ece11ca0903\\\\scratchpad'; .venv\\\\Scripts\\\\python.exe \"$s\\\\ui_server.py\" \\(Get-Location\\).Path)",
+      "PowerShell($s='C:\\\\Users\\\\PV01\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--Project-DesktopApp-pdf-gui-ocr-tool\\\\40f1fb7e-3b87-4a7e-860e-7ece11ca0903\\\\scratchpad'; New-Item -ItemType Directory -Force \"$s\\\\ui\" | Out-Null; node \"$s\\\\ui_drive.mjs\" \"$s\\\\ui\" 'D:\\\\Project\\\\DesktopApp\\\\Data_test\\\\all\\\\Scan_0001.pdf')",
+      "PowerShell($env:TEMP='D:\\\\Temp\\\\Codex'; $env:TMP='D:\\\\Temp\\\\Codex'; $env:PYTHONIOENCODING='utf-8'; try { .venv\\\\Scripts\\\\python.exe -m unittest discover -s tests 2>&1 | Select-Object -Last 3 } catch {})",
+      "PowerShell($env:TEMP='D:\\\\Temp\\\\Codex'; $env:TMP='D:\\\\Temp\\\\Codex'; $env:PYTHONIOENCODING='utf-8'; try { .venv\\\\Scripts\\\\python.exe -m unittest discover -s tests 2>&1 | Select-Object -Last 25 } catch {})",
+      "PowerShell(New-Item -ItemType Directory -Force D:\\\\Temp\\\\Codex\\\\split_ui | Out-Null; $env:TEMP='D:\\\\Temp\\\\Codex'; $env:TMP='D:\\\\Temp\\\\Codex'; $env:PYTHONIOENCODING='utf-8'; $s='C:\\\\Users\\\\PV01\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--Project-DesktopApp-pdf-gui-ocr-tool\\\\40f1fb7e-3b87-4a7e-860e-7ece11ca0903\\\\scratchpad'; Get-ChildItem D:\\\\Project\\\\DesktopApp\\\\Data_test -Recurse -File | Select-Object FullName, Length | Format-Table -AutoSize | Out-String -Width 160; .venv\\\\Scripts\\\\python.exe \"$s\\\\try_attach.py\" \\(Get-Location\\).Path 'D:\\\\Project\\\\DesktopApp\\\\Data_test\\\\all\\\\Scan_0001.pdf' 2>$null | Where-Object { $_ -notmatch 'ReduceMean|pkg_resources|Model files' })",
+      "PowerShell($env:TEMP='D:\\\\Temp\\\\Codex'; $env:TMP='D:\\\\Temp\\\\Codex'; $env:PYTHONIOENCODING='utf-8'; $env:PYTHONUNBUFFERED='1'; $s='C:\\\\Users\\\\PV01\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--Project-DesktopApp-pdf-gui-ocr-tool\\\\40f1fb7e-3b87-4a7e-860e-7ece11ca0903\\\\scratchpad'; $root=\\(Get-Location\\).Path; $p=Start-Process -FilePath .venv\\\\Scripts\\\\python.exe -ArgumentList \"`\"$s\\\\try_attach.py`\"\",\"`\"$root`\"\",\"`\"D:\\\\Project\\\\DesktopApp\\\\Data_test\\\\all\\\\Scan_0001.pdf`\"\" -WindowStyle Hidden -PassThru -Wait -RedirectStandardOutput \"$s\\\\attach_out.txt\" -RedirectStandardError \"$s\\\\attach_err.txt\"; \"exit: \" + $p.ExitCode; Get-Content \"$s\\\\attach_out.txt\" -Encoding UTF8; '--- err'; Get-Content \"$s\\\\attach_err.txt\" -Encoding UTF8 -Tail 12)",
+      "PowerShell($env:TEMP='D:\\\\Temp\\\\Codex'; $env:TMP='D:\\\\Temp\\\\Codex'; $env:PYTHONIOENCODING='utf-8'; try { .venv\\\\Scripts\\\\python.exe -m unittest discover -s tests 2>&1 | Where-Object { $_ -notmatch 'DeprecationWarning|replace_contents|existing approach|^At line|^\\\\+ |CategoryInfo|FullyQualified' } | Select-Object -Last 30 } catch {})"
+    ],
+    "additionalDirectories": [
+      "D:\\Project\\DesktopApp\\license_tool\\utils"
+    ]
+  }
+}

@@ -1,4 +1,8 @@
 # === license_utils.py ===
+# License Key do tool D:\Project\DesktopApp\license_tool cấp (chọn sản phẩm "OfflineOCR Studio"):
+#   base64url(OFFLINEOCR|machine_id|YYYY-MM-DD) . base64url(chữ ký Ed25519)
+# App chỉ giữ PUBLIC KEY nên kiểm tra được key nhưng không tạo được key.
+# Cách tính Machine ID phải giống hàm get_machine_id() trong license_tool.
 import uuid
 import hashlib
 import hmac
@@ -8,6 +12,9 @@ import os
 import time
 from datetime import datetime, date
 
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
 # Windows Registry (chỉ trên Windows)
 try:
     import winreg
@@ -16,7 +23,9 @@ except ImportError:
     HAS_WINREG = False
 
 # Cấu hình
-SECRET_KEY = b"CAT_LAMDONG_PRIVATE_KEY_2026"
+PRODUCT = "OFFLINEOCR"
+PUBLIC_KEY_HEX = "e81ceff45266f3941c0205463f203c467faa84ec05b5b76ef3ce6c2858179d61"  # keygen.py --show trong license_tool
+SECRET_KEY = b"CAT_LAMDONG_PRIVATE_KEY_2026"  # Chỉ dùng ký dữ liệu dùng thử, không liên quan License Key
 TRIAL_DAYS = 1  # Số ngày dùng thử
 import config
 LICENSE_FILE = config.LICENSE_FILE   # %LOCALAPPDATA%\OfflineOCR Studio\data\license.dat (khi đã cài đặt)
@@ -263,40 +272,55 @@ def get_trial_info():
     }
 
 
+def _b64d(text: str) -> bytes:
+    return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
+
+
+def _decode_license(license_key: str):
+    """Kiểm tra chữ ký rồi tách thành [product, machine_id, expiry_str].
+    Trả về None nếu sai định dạng, False nếu chữ ký không hợp lệ."""
+    try:
+        payload_b64, sig_b64 = license_key.strip().split(".")
+        payload, sig = _b64d(payload_b64), _b64d(sig_b64)
+    except Exception:
+        return None
+    try:
+        Ed25519PublicKey.from_public_bytes(bytes.fromhex(PUBLIC_KEY_HEX)).verify(sig, payload)
+    except (InvalidSignature, ValueError):
+        return False
+    parts = payload.decode(errors="replace").split("|")
+    return parts if len(parts) == 3 else None
+
+
 def verify_license_key(license_key: str):
     """Xác thực license key"""
+    # Bỏ khoảng trắng / xuống dòng lẫn vào khi khách copy key qua Zalo, email...
+    license_key = "".join((license_key or "").split())
+    if license_key and "." not in license_key:
+        # Key HMAC của bản cũ không có dấu "." -> không còn được chấp nhận
+        return False, "License Key thuộc phiên bản cũ. Vui lòng gửi Code cho nhà cung cấp để nhận key mới"
+
+    parts = _decode_license(license_key)
+    if parts is None:
+        return False, "License Key không đúng định dạng"
+    if parts is False:
+        return False, "License Key không hợp lệ"
+
+    product, machine_id, expiry_str = parts
+    if product != PRODUCT:
+        return False, "License Key không hợp lệ"
+    if machine_id != get_machine_id():
+        return False, "License Key không đúng với Code của máy này"
+
+    # Kiểm tra ngày hết hạn
     try:
-        # Decode base64
-        raw = base64.b64decode(license_key.encode()).decode()
-        parts = raw.split("|")
-        
-        if len(parts) != 3:
-            return False, "License key không hợp lệ"
-        
-        machine_id, expiry_str, sig = parts
-        
-        # Kiểm tra Machine ID
-        current_machine_id = get_machine_id()
-        if machine_id != current_machine_id:
-            return False, f"License key không khớp với máy này. Mã máy: {current_machine_id}"
-        
-        # Kiểm tra chữ ký
-        payload = f"{machine_id}|{expiry_str}"
-        expected_sig = sign(payload)
-        if sig != expected_sig:
-            return False, "License key không hợp lệ (chữ ký sai)"
-        
-        # Kiểm tra ngày hết hạn
-        try:
-            expiry_date = datetime.strptime(expiry_str, "%Y-%m-%d").date()
-            if date.today() > expiry_date:
-                return False, f"License key đã hết hạn (hết hạn: {expiry_str})"
-        except:
-            return False, "License key không hợp lệ (ngày hết hạn sai)"
-        
-        return True, "License key hợp lệ"
-    except Exception as e:
-        return False, f"Lỗi kiểm tra license: {str(e)}"
+        expiry_date = datetime.strptime(expiry_str, "%Y-%m-%d").date()
+    except ValueError:
+        return False, "License Key không hợp lệ (ngày hết hạn sai)"
+    if date.today() > expiry_date:
+        return False, f"License Key đã hết hạn ngày {expiry_date.strftime('%d/%m/%Y')}"
+
+    return True, "License Key hợp lệ"
 
 
 def check_license():
@@ -342,14 +366,12 @@ def get_license_info():
         if not license_key:
             return None
         
-        raw = base64.b64decode(license_key.encode()).decode()
-        parts = raw.split("|")
-        
-        if len(parts) != 3:
+        parts = _decode_license(license_key)
+        if not parts:
             return None
-        
-        machine_id, expiry_str, sig = parts
-        
+
+        _, machine_id, expiry_str = parts
+
         try:
             expiry_date = datetime.strptime(expiry_str, "%Y-%m-%d").date()
             remaining_days = (expiry_date - date.today()).days
@@ -363,26 +385,6 @@ def get_license_info():
         }
     except:
         return None
-
-
-# ========================================
-# ADMIN TOOL - Generate License Key
-# ========================================
-def generate_license_key(machine_id: str, expiry_date: str = "2099-12-31"):
-    """
-    Tạo license key cho một máy cụ thể
-    
-    Args:
-        machine_id: Machine ID của máy người dùng
-        expiry_date: Ngày hết hạn (format: YYYY-MM-DD)
-    
-    Returns:
-        License key (base64 encoded string)
-    """
-    payload = f"{machine_id}|{expiry_date}"
-    sig = sign(payload)
-    license_raw = f"{payload}|{sig}"
-    return base64.b64encode(license_raw.encode()).decode()
 
 
 if __name__ == "__main__":

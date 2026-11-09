@@ -8,6 +8,11 @@
 import os
 import sys
 
+# PyInstaller's spawn dispatch must run before importing application modules.
+if __name__ == "__main__":
+    import multiprocessing
+    multiprocessing.freeze_support()
+
 import config
 
 
@@ -80,6 +85,7 @@ def main():
             window.maximize()
 
     window.events.loaded += on_loaded
+    window.events.closed += api._close
     icon = os.path.join(config.BASE_DIR, "assets", "logo.ico")
     webview.start(gui="edgechromium", debug="--debug" in sys.argv,
                   icon=icon if os.path.exists(icon) else None,

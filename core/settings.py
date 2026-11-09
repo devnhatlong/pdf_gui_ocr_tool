@@ -12,7 +12,9 @@ DEFAULTS = {
     "export_format": "pdf",            # pdf | searchable_pdf | docx | xlsx | txt
     "keep_original": True,
     "folder_by_date": True,
-    "naming_rule": "{loai}_{coquan}_{so}_{ngay}_{trichyeu}",
+    "naming_rule": "{so}_{ngay}_{trichyeu}",
+    "slash_replacement": "-",          # chuỗi thay cho dấu / trong tên file
+    "filename_ascii": True,            # tên file không dấu, trích yếu viết liền (VeViecBoNhiem)
     "overwrite": False,                # False: tự thêm (1), (2)... khi trùng tên
     "dpi": 200,
     "device": "auto",                  # auto | cpu
@@ -21,6 +23,8 @@ DEFAULTS = {
     "auto_rotate": True,
     "deskew": True,
     "denoise": False,
+    "ink_boost": "off",                # off | light | strong - tăng độ đậm chữ trước khi OCR
+    "color_mode": "keep",              # keep | gray | vivid | bw - đổi màu ảnh trước khi OCR
     "ocr_threshold": 80,               # % - dòng dưới ngưỡng được đánh dấu cần kiểm tra
     "split_threshold": 70,             # % - điểm tách dưới ngưỡng được đánh dấu nghi vấn
     "keep_annex": True,                # giữ phụ lục cùng văn bản chính
@@ -33,6 +37,9 @@ DEFAULTS = {
 }
 
 
+OLD_NAMING_RULE = "{loai}_{coquan}_{so}_{ngay}_{trichyeu}"   # mặc định cũ, tự đổi sang quy tắc mới
+
+
 class Settings:
     def __init__(self, path=config.SETTINGS_FILE):
         self.path = path
@@ -43,6 +50,8 @@ class Settings:
                 self.data.update({k: v for k, v in json.load(f).items() if k in DEFAULTS})
         except (OSError, ValueError):
             pass
+        if self.data["naming_rule"] == OLD_NAMING_RULE:
+            self.data["naming_rule"] = DEFAULTS["naming_rule"]
 
     def get(self, key):
         return self.data.get(key, DEFAULTS.get(key))

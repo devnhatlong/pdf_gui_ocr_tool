@@ -6,10 +6,19 @@ import re
 import unicodedata
 
 
+AUTHORITY_TITLES = ("giam doc", "tong giam doc", "pho giam doc", "chu tich", "pho chu tich", "uy ban nhan dan",
+                    "hoi dong nhan dan", "bo truong", "thu truong", "cuc truong", "hieu truong", "truong phong",
+                    "truong ban", "bi thu")
+
+
 class _Extractor:
-    def remove_accents(self, s):
+    def strip_marks(self, s):
+        """Bỏ dấu thanh, dấu mũ và viết thường; giữ chữ đ (Unicode không tách được dấu của đ)."""
         s = unicodedata.normalize("NFKD", s)
         return "".join(c for c in s if not unicodedata.combining(c)).lower()
+
+    def remove_accents(self, s):
+        return self.strip_marks(s).replace("đ", "d")
 
     @staticmethod
     def starts_new_sentence(line):
@@ -17,6 +26,19 @@ class _Extractor:
         (Trích yếu nhiều dòng thì dòng sau viết thường, hoặc viết hoa toàn bộ nếu là tiêu đề.)"""
         letters = [c for c in line if c.isalpha()]
         return bool(letters) and letters[0].isupper() and not all(c.isupper() for c in letters)
+
+    def ends_summary(self, line, summary_lines):
+        """Dòng này không còn thuộc trích yếu: câu mới, hoặc dòng thẩm quyền ban hành viết hoa
+        (VD: "GIÁM ĐỐC CÔNG AN TỈNH") nằm ngay dưới trích yếu của quyết định."""
+        if self.starts_new_sentence(line):
+            return True
+        letters = [c for c in line if c.isalpha()]
+        if not letters or not all(c.isupper() for c in letters):
+            return False
+        summary_letters = [c for c in "".join(summary_lines) if c.isalpha()]
+        if not all(c.isupper() for c in summary_letters):
+            return True
+        return self.remove_accents(line).startswith(AUTHORITY_TITLES)
 
     def extract_metadata_from_ocr(self, text):
         result = {"so_ky_hieu": "", "ngay_ban_hanh": "", "trich_yeu": "", "loai_van_ban": ""}
@@ -44,12 +66,13 @@ class _Extractor:
         t = self.remove_accents(" ".join(lines))
         t = re.sub(r"\s+", " ", t)
 
-        # === SỐ KÝ HIỆU ===
+        # === SỐ KÝ HIỆU === (giữ chữ Đ: QĐ, NĐ-CP...)
+        t_so = re.sub(r"\s+", " ", self.strip_marks(" ".join(lines)))
         for p in [
-            r"\bso[:\-\s]+([a-z0-9\/\-\.]+)",
-            r"\bs0[:\-\s]+([a-z0-9\/\-\.]+)",
+            r"\bso[:\-\s]+([a-z0-9đ\/\-\.]+)",
+            r"\bs0[:\-\s]+([a-z0-9đ\/\-\.]+)",
         ]:
-            m = re.search(p, t)
+            m = re.search(p, t_so)
             if m:
                 result["so_ky_hieu"] = m.group(1).upper()
                 break
@@ -119,7 +142,7 @@ class _Extractor:
                     break
 
                 # Dòng tiếp theo bắt đầu một câu mới (viết hoa chữ đầu) là phần nội dung, không phải trích yếu
-                if trich_yeu_lines and self.starts_new_sentence(line):
+                if trich_yeu_lines and self.ends_summary(line, trich_yeu_lines):
                     break
 
                 # Lấy dòng này vào trích yếu (bao gồm cả dòng V/v và các dòng tiếp theo)
@@ -218,6 +241,12 @@ class _Extractor:
                         if result["trich_yeu"]:
                             # Tìm loại văn bản từ mapping
                             kw_original = title_keywords_original[kw_idx]
+                            # "Quyết định bổ nhiệm..." là tên văn bản: giữ nguyên cả dòng.
+                            # "THÔNG BÁO: ...", "Thông báo về việc ...": chỉ lấy phần nội dung.
+                            rest = self.remove_accents(result["trich_yeu"])
+                            if (kw_original != "kính gửi" and not rest.startswith(("ve viec", "v/v"))
+                                    and not re.match(re.escape(kw_no_accents) + r"\s*:", line_no_accents.strip())):
+                                result["trich_yeu"] = line_clean
                             if kw_original in keyword_to_loai:
                                 result["loai_van_ban"] = keyword_to_loai[kw_original]
                             return result
@@ -269,7 +298,7 @@ class _Extractor:
                     if re.match(r"^[\s]*(?:so|ngay)[\s:]", line_no_accents):
                         break
 
-                    if trich_yeu_lines and self.starts_new_sentence(line):
+                    if trich_yeu_lines and self.ends_summary(line, trich_yeu_lines):
                         break
 
                     # Lấy dòng này vào trích yếu
@@ -340,41 +369,49 @@ def extract_metadata(text):
     return meta
 
 
-def _summary_part(trich_yeu, has_type):
-    """Trích yếu: bỏ dấu, viết liền; viết hoa chữ đầu (hoặc Title Case nếu không có loại văn bản)."""
-    if not trich_yeu:
-        return ""
-    lower = remove_accents(trich_yeu).lower()
-    if has_type:
-        out, done = [], False
-        for ch in lower:
-            if ch.isalpha() and not done:
-                out.append(ch.upper())
-                done = True
-            else:
-                out.append(ch)
-        text = "".join(out)
-    else:
-        text = lower.title()
-    return re.sub(r"[^\w]", "", text)
+def _summary_part(trich_yeu):
+    """Trích yếu: giữ dấu và khoảng trắng, viết hoa chữ đầu (dòng viết hoa toàn bộ đưa về chữ thường trước)."""
+    text = unicodedata.normalize("NFC", trich_yeu)
+    if text.isupper():
+        text = text.lower()
+    text = re.sub(r"^v\s*/\s*v\b[.:]?\s*", "Về việc ", text, flags=re.I)
+    return text[:1].upper() + text[1:]
 
 
-def build_filename(fields, rule="{loai}_{coquan}_{so}_{ngay}_{trichyeu}", ext=".pdf"):
-    """fields: loai, coquan, so, ngay (dd/mm/yyyy), trichyeu. Phần rỗng được bỏ cùng dấu nối."""
-    loai = (fields.get("loai") or "").strip()
+def to_ascii(text):
+    """Bỏ dấu tiếng Việt, giữ chữ hoa / thường: Quyết Định -> Quyet Dinh."""
+    text = unicodedata.normalize("NFD", text.replace("đ", "d").replace("Đ", "D"))
+    return "".join(c for c in text if not unicodedata.combining(c))
+
+
+def _joined(text):
+    """Viết liền, hoa chữ đầu mỗi từ: Về việc bổ nhiệm -> VeViecBoNhiem (giữ dấu / để thay sau)."""
+    return "".join(w[:1].upper() + w[1:] for w in re.findall(r"[A-Za-z0-9/\-]+", text))
+
+
+def build_filename(fields, rule="{so}_{ngay}_{trichyeu}", ext=".pdf", slash="-", ascii_name=False):
+    """fields: loai, coquan, so, ngay (dd/mm/yyyy), trichyeu. Phần rỗng được bỏ cùng dấu nối.
+    slash: chuỗi người dùng chọn thay cho dấu / (không dùng được trong tên file): 56/BC-CAT -> 56-BC-CAT.
+    ascii_name: tên file không dấu, trích yếu viết liền (VeViecBoNhiem)."""
     values = {
-        "loai": loai,
+        "loai": (fields.get("loai") or "").strip(),
         "coquan": (fields.get("coquan") or "").strip(),
         "so": (fields.get("so") or "").strip(),
-        "ngay": (fields.get("ngay") or "").strip().replace("/", "-"),
-        "trichyeu": _summary_part(re.sub(r"\s+", " ", fields.get("trichyeu") or "").strip(), bool(loai)),
+        "ngay": (fields.get("ngay") or "").strip(),
+        "trichyeu": _summary_part(re.sub(r"\s+", " ", fields.get("trichyeu") or "").strip()),
     }
-    values = {k: re.sub(r'[\\/:*?"<>|\r\n\t]', "", v) for k, v in values.items()}
+    if ascii_name:
+        values = {k: to_ascii(v) for k, v in values.items()}
+        values["trichyeu"] = _joined(values["trichyeu"])
+        rule = to_ascii(rule)
+    # Giữ chỗ bằng \0 để bước gộp dấu nối bên dưới không làm đổi chuỗi người dùng chọn (VD: "--")
+    values = {k: re.sub(r'[\\:*?"<>|\r\n\t]', "", v.replace("/", "\0")) for k, v in values.items()}
     name = rule
     for key, value in values.items():
         name = name.replace("{" + key + "}", value)
     name = re.sub(r"[_\-\s]{2,}", lambda m: m.group(0)[0], name).strip("_- ")
     name = re.sub(r'[\\/:*?"<>|\r\n\t]', "", name)
+    name = name.replace("\0", re.sub(r'[\\/:*?"<>|\x00-\x1f]', "", slash))
     return (name[:180] + ext) if name else ""
 
 

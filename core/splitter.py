@@ -16,6 +16,7 @@ TITLE_WORDS = ["bao cao", "cong van", "ke hoach", "ket luan", "quyet dinh", "ngh
                "chi thi", "quy dinh", "quy che", "giay de nghi", "don", "hop dong", "giay xac nhan"]
 SIGN_WORDS = ["tm.", "kt.", "tl.", "giam doc", "chu tich", "truong phong", "thu truong", "pho truong",
               "nguoi ky", "truong ban", "bi thu", "chi huy truong", "nguoi lap"]
+ATTACH_WORDS = r"(?:danh sach|phu luc|bang|bieu)"
 
 
 def _plain(s):
@@ -102,11 +103,49 @@ def probability(score):
     return 1 / (1 + math.exp(-(score - 2.5) * 1.2))
 
 
+def mentions_attachment(ocr):
+    """Văn bản có nhắc tài liệu đính kèm: "(có Danh sách kèm theo)", "kèm theo Phụ lục"..."""
+    text = _plain(" ".join(ln["text"] for ln in (ocr or {}).get("lines", [])))
+    return bool(re.search(rf"\b{ATTACH_WORDS}\b[^.;]{{0,40}}\bkem theo\b|\bkem theo\b[^.;]{{0,15}}\b{ATTACH_WORDS}\b", text))
+
+
+def _has_table(ocr, min_rows=5):
+    """Trang có bảng: nhiều hàng, mỗi hàng từ 3 ô chữ trở lên trên cùng một đường ngang."""
+    boxes = sorted((ln["box"] for ln in ocr.get("lines", [])), key=lambda b: b[1] + b[3])
+    if not boxes:
+        return False
+    tol = sorted(b[3] - b[1] for b in boxes)[len(boxes) // 2] * 0.6
+    rows, count, last = 0, 0, None
+    for b in boxes:
+        y = (b[1] + b[3]) / 2
+        if last is not None and y - last > tol:
+            rows += count >= 3
+            count = 0
+        count += 1
+        last = y
+    return rows + (count >= 3) >= min_rows
+
+
+def is_attachment_page(ocr):
+    """Trang có dạng danh sách / bảng đính kèm. Trang có số ký hiệu riêng là văn bản độc lập."""
+    if not ocr:
+        return False
+    top_lines = _region(ocr, top=0.42)
+    top = _plain(" ".join(top_lines))
+    if re.search(r"\bkem theo\b", top):
+        return True
+    if re.search(r"\bs[o0]\s*[:.]\s*[\w.\-]*\d+\s*/", top):
+        return False
+    titled = any(re.match(ATTACH_WORDS + r"\b", _plain(line).strip()) and line.strip()[:1].isupper() for line in top_lines)
+    return titled or _has_table(ocr)
+
+
 def analyze(doc, settings):
     """Đề xuất điểm tách. Kết quả lưu vào doc.groups và trả về danh sách nhóm."""
     pages = doc.pages
     starts = {}
     prev_content = None
+    has_attachment = False   # văn bản đang xét có nhắc tài liệu kèm theo
     for i, p in enumerate(pages):
         if p.blank or p.codes:
             continue
@@ -115,10 +154,15 @@ def analyze(doc, settings):
         prev_page = pages[i - 1] if i > 0 else None
         sc, reasons = score_page(ocr, prev_ocr, p, prev_page, settings)
         prob = probability(sc)
+        if prob >= 0.5 and has_attachment and settings.get("keep_annex", True) and is_attachment_page(ocr):
+            prob = 0.2
+            reasons = reasons + ["Tài liệu kèm theo văn bản trước - gộp chung"]
         if prev_content is None:
             starts[p.uid] = {"prob": max(prob, 0.5), "reasons": reasons or ["Trang đầu tập"]}
         elif prob >= 0.5:
             starts[p.uid] = {"prob": prob, "reasons": reasons}
+            has_attachment = False
+        has_attachment = has_attachment or mentions_attachment(ocr)
         p.split_score = {"prob": prob, "reasons": reasons}
         prev_content = p
     doc.groups = build_groups(doc, starts, settings)
@@ -145,7 +189,9 @@ def build_groups(doc, starts, settings, names=None):
         text = doc.page_text(g["uids"][0])
         meta = metadata.extract_metadata(text)
         g["meta"] = meta
-        auto = metadata.build_filename(metadata.meta_to_fields(meta), rule, ext="")
+        auto = metadata.build_filename(metadata.meta_to_fields(meta), rule, ext="",
+                                       slash=settings.get("slash_replacement", "-"),
+                                       ascii_name=settings.get("filename_ascii", False))
         g["auto_name"] = auto or f"Van_ban_{i + 1:02d}"
         g["name"] = names.get(g["start_uid"]) or g["auto_name"]
         g["type"] = meta.get("loai_van_ban") or "Khác"

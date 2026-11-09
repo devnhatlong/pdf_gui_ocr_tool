@@ -33,12 +33,19 @@ def gpu_info():
 
 def snapshot():
     mem = psutil.virtual_memory()
+    process = psutil.Process()
+    ram = process.memory_info().rss
+    for child in process.children(recursive=True):
+        try:
+            ram += child.memory_info().rss
+        except psutil.Error:
+            pass
     return {
         "cpu": psutil.cpu_percent(interval=None),
         "cpu_count": psutil.cpu_count(),
         "ram_used_gb": round(mem.used / 1024 ** 3, 1),
         "ram_total_gb": round(mem.total / 1024 ** 3, 1),
         "ram_percent": mem.percent,
-        "process_ram_gb": round(psutil.Process().memory_info().rss / 1024 ** 3, 2),
+        "process_ram_gb": round(ram / 1024 ** 3, 2),
         "gpus": gpu_info(),
     }

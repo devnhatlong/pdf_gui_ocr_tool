@@ -5,7 +5,7 @@ import base64
 import io
 
 import numpy as np
-from PIL import Image, ImageOps
+from PIL import Image, ImageEnhance, ImageOps
 
 
 def to_data_url(image, max_side=None, quality=82):
@@ -61,6 +61,33 @@ def denoise(image):
 def enhance(image):
     """Tăng tương phản nhẹ cho ảnh scan mờ."""
     return ImageOps.autocontrast(image.convert("RGB"), cutoff=1)
+
+
+def boost_ink(image, level):
+    """Tăng độ đậm chữ trước khi OCR. level: off | light (tăng tương phản) | strong (thêm gamma làm tối nét nhạt)."""
+    if level == "light":
+        return enhance(image)
+    if level == "strong":
+        curve = [round(255 * (i / 255) ** 1.8) for i in range(256)]   # nền trắng giữ nguyên, nét xám tối đi
+        return enhance(image).point(curve * 3)
+    return image
+
+
+def apply_color_mode(image, mode):
+    """Đổi màu ảnh trước khi OCR. mode: keep | gray | vivid (tăng màu) | bw (trắng đen, ngưỡng theo từng vùng)."""
+    if mode == "gray":
+        return image.convert("L").convert("RGB")
+    if mode == "vivid":
+        return ImageEnhance.Color(image.convert("RGB")).enhance(2.5)
+    if mode == "bw":
+        try:
+            import cv2
+            arr = np.array(image.convert("L"))
+            arr = cv2.adaptiveThreshold(arr, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 41, 12)
+            return Image.fromarray(arr).convert("RGB")
+        except Exception:
+            return image
+    return image
 
 
 def is_blank(image, ink_ratio=0.003):

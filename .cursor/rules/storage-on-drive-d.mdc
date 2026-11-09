@@ -1,0 +1,12 @@
+---
+description: Use drive D for all agent-managed installations, downloads and temporary data
+alwaysApply: true
+---
+
+- User preference: put all agent-managed installations and downloads on drive D.
+- This includes Python virtual environments, packages, SDKs, model weights, package/model caches, temporary downloads, extraction directories, build intermediates and build outputs.
+- Reuse existing D paths. OCR models are in `D:\Project\DesktopApp\pdf_gui_ocr_tool\models`; DeepSeek is in that project's `experiments\deepseek`; migrated caches are in `D:\AI\Cache`.
+- Before installation/download commands, set process `TEMP` and `TMP` to a dedicated directory on D (for example `D:\Temp\Codex`), and set the relevant package-manager cache to D. Use installer options to select a D destination.
+- Do not silently fall back to C. If a tool requires meaningful storage on C, explain the requirement before proceeding.
+- Do not change Windows-wide temporary directories or move unrelated existing application data merely to follow this rule.
+- For OfflineOCR Studio, edit, test and run the development version by default. Build `.exe` files or installers only when the user explicitly requests a build.
