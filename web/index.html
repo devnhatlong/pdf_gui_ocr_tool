@@ -490,40 +490,66 @@
                 phục</button><button class="btn danger" onclick="resetSettings()"><i data-ic="rotate-ccw"></i> Mặc
                 định</button></div>
           </div>
-          <div class="grid cols2">
+          <div class="tabs" id="settingsTabs">
+            <button class="tab active" data-settab="naming">Đặt tên file</button>
+            <button class="tab" data-settab="ocr">Nhận dạng OCR</button>
+            <button class="tab" data-settab="split">Tách tài liệu</button>
+            <button class="tab" data-settab="output">Thư mục &amp; Xuất</button>
+            <button class="tab" data-settab="data">Bảo mật &amp; Dữ liệu</button>
+            <button class="tab" data-settab="about">Giao diện &amp; Giới thiệu</button>
+          </div>
+
+          <!-- ĐẶT TÊN FILE -->
+          <div class="setpanel" data-panel="naming">
             <div class="card cardpad">
-              <h3>Thư mục & Đầu ra</h3>
-              <label class="fieldlabel">Thư mục lưu kết quả</label>
-              <div class="row"><input class="input" style="flex:1" id="sOutput" data-key="output_dir"><button
-                  class="btn small" onclick="pickOutput()">Chọn…</button></div>
-              <label class="fieldlabel mt">Định dạng xuất mặc định</label>
-              <select class="select w100" data-key="export_format">
-                <option value="pdf">PDF riêng theo văn bản</option>
-                <option value="searchable_pdf">PDF có lớp chữ</option>
-                <option value="docx">Word (.docx)</option>
-                <option value="xlsx">Excel (.xlsx)</option>
-                <option value="txt">TXT</option>
-              </select>
-              <label class="fieldlabel mt">Quy tắc đặt tên file</label>
+              <h3>Quy tắc đặt tên file</h3>
+              <label class="fieldlabel">Thứ tự các thành phần trong tên file</label>
               <input class="input w100 mono" data-key="naming_rule">
-              <p class="small muted">Dùng: <span class="kbd">{loai}</span> <span class="kbd">{coquan}</span> <span
-                  class="kbd">{so}</span> <span class="kbd">{ngay}</span> <span class="kbd">{trichyeu}</span></p>
+              <p class="small muted">Dùng: <span class="kbd">{so}</span> <span class="kbd">{loai}</span> <span
+                  class="kbd">{coquan}</span> <span class="kbd">{ngay}</span> <span class="kbd">{trichyeu}</span>. Số ký
+                hiệu 1794/QĐ-XPHC: <span class="kbd">{so}</span>=1794, <span class="kbd">{loai}</span>=QĐ (phần ngay sau
+                /), <span class="kbd">{coquan}</span> lấy từ dòng cơ quan.</p>
               <label class="fieldlabel mt">Ký tự thay cho dấu /</label>
               <input class="input w100 mono" data-key="slash_replacement">
               <p class="small muted">Áp dụng cho số ký hiệu, ngày và trích yếu, ví dụ 123/BC-DONVI thành 123-BC-DONVI.
-                Để trống
-                thì bỏ dấu /. Không dùng được các ký tự Windows cấm: <span class="kbd">\ / : * ? &quot; &lt; &gt;
-                  |</span></p>
+                Để trống thì bỏ dấu /. Không dùng được các ký tự Windows cấm: <span class="kbd">\ / : * ? &quot; &lt;
+                  &gt; |</span></p>
               <p><label><input type="checkbox" class="check" data-key="filename_ascii"> Tên file không dấu, trích yếu
                   viết liền</label></p>
-              <p class="small muted">Bật: 56-BC-CAT_19-10-2026_QuyetDinhBoNhiemKyThuatVien. Tắt: giữ nguyên như trích yếu,
-                56-BC-CAT_19-10-2026_Quyết định bổ nhiệm kỹ thuật viên. Các ô thông tin luôn giữ tiếng Việt có dấu.</p>
-              <p><label><input type="checkbox" class="check" data-key="folder_by_date"> Tự động tạo thư mục theo
-                  ngày</label></p>
-              <p><label><input type="checkbox" class="check" data-key="keep_original"> Giữ bản gốc sau xử lý</label></p>
-              <p><label><input type="checkbox" class="check" data-key="overwrite"> Cho phép ghi đè file trùng tên (tắt:
-                  tự thêm (1), (2)…)</label></p>
+              <p class="small muted">Bật: 123-BC-CAT_19-10-2026_QuyetDinhBoNhiemKyThuatVien. Tắt: giữ nguyên như trích
+                yếu,
+                123-BC-CAT_19-10-2026_Quyết định bổ nhiệm kỹ thuật viên. Các ô thông tin luôn giữ tiếng Việt có dấu.</p>
             </div>
+            <div class="grid cols2">
+              <div class="card cardpad">
+                <h3>Chữ viết tắt loại văn bản</h3>
+                <p class="small muted">OCR đọc được tên loại (bên trái) thì dùng chữ viết tắt (bên phải) trong tên file.
+                </p>
+                <input class="input w100 mapsearch" id="typeSearch" placeholder="Tìm loại hoặc chữ viết tắt…"
+                  oninput="searchMap('doc_type_map', this.value)">
+                <div class="maptable" id="typeMap"></div>
+                <div class="mappager" id="typePager"></div>
+                <div class="row maptools"><button class="btn small" onclick="addMapRow('doc_type_map')"><i
+                      data-ic="plus"></i> Thêm loại</button><button class="btn small ghost"
+                    onclick="resetMap('doc_type_map')"><i data-ic="undo-2"></i> Về mặc định</button></div>
+              </div>
+              <div class="card cardpad">
+                <h3>Chữ viết tắt cơ quan ban hành</h3>
+                <p class="small muted">Lấy dòng cơ quan ngay trên dòng "Số:" (ví dụ Phòng Tham mưu), rồi đổi sang chữ
+                  viết tắt bên phải.</p>
+                <input class="input w100 mapsearch" id="agencySearch" placeholder="Tìm cơ quan hoặc chữ viết tắt…"
+                  oninput="searchMap('agency_map', this.value)">
+                <div class="maptable" id="agencyMap"></div>
+                <div class="mappager" id="agencyPager"></div>
+                <div class="row maptools"><button class="btn small" onclick="addMapRow('agency_map')"><i
+                      data-ic="plus"></i> Thêm cơ quan</button><button class="btn small ghost"
+                    onclick="resetMap('agency_map')"><i data-ic="undo-2"></i> Về mặc định</button></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- NHẬN DẠNG OCR -->
+          <div class="setpanel hidden" data-panel="ocr">
             <div class="card cardpad">
               <h3>Nhận dạng OCR</h3>
               <div class="grid cols2">
@@ -566,6 +592,10 @@
               <input type="range" min="50" max="99" data-key="ocr_threshold" data-type="int" class="w100"
                 oninput="this.nextElementSibling.textContent=this.value+'%'"><strong></strong>
             </div>
+          </div>
+
+          <!-- TÁCH TÀI LIỆU -->
+          <div class="setpanel hidden" data-panel="split">
             <div class="card cardpad">
               <h3>Quy tắc tách tài liệu</h3>
               <label class="fieldlabel">Ngưỡng tin cậy - điểm tách thấp hơn được đánh dấu nghi vấn</label>
@@ -578,8 +608,35 @@
               <p><label><input type="checkbox" class="check" data-key="remove_blank_pages"> Bỏ trang trắng khi
                   xuất</label></p>
             </div>
+          </div>
+
+          <!-- THƯ MỤC & XUẤT -->
+          <div class="setpanel hidden" data-panel="output">
             <div class="card cardpad">
-              <h3>Bảo mật & Dữ liệu</h3>
+              <h3>Thư mục &amp; Xuất</h3>
+              <label class="fieldlabel">Thư mục lưu kết quả</label>
+              <div class="row"><input class="input" style="flex:1" id="sOutput" data-key="output_dir"><button
+                  class="btn small" onclick="pickOutput()">Chọn…</button></div>
+              <label class="fieldlabel mt">Định dạng xuất mặc định</label>
+              <select class="select w100" data-key="export_format">
+                <option value="pdf">PDF riêng theo văn bản</option>
+                <option value="searchable_pdf">PDF có lớp chữ</option>
+                <option value="docx">Word (.docx)</option>
+                <option value="xlsx">Excel (.xlsx)</option>
+                <option value="txt">TXT</option>
+              </select>
+              <p class="mt"><label><input type="checkbox" class="check" data-key="folder_by_date"> Tự động tạo thư mục
+                  theo ngày</label></p>
+              <p><label><input type="checkbox" class="check" data-key="keep_original"> Giữ bản gốc sau xử lý</label></p>
+              <p><label><input type="checkbox" class="check" data-key="overwrite"> Cho phép ghi đè file trùng tên (tắt:
+                  tự thêm (1), (2)…)</label></p>
+            </div>
+          </div>
+
+          <!-- BẢO MẬT & DỮ LIỆU -->
+          <div class="setpanel hidden" data-panel="data">
+            <div class="card cardpad">
+              <h3>Bảo mật &amp; Dữ liệu</h3>
               <p><label><input type="checkbox" class="check" checked disabled> Xử lý trên máy, không gửi tài liệu ra
                   ngoài</label></p>
               <p><label><input type="checkbox" class="check" data-key="no_ocr_log"> Không ghi nội dung OCR vào
@@ -591,22 +648,28 @@
               <div class="row mt"><button class="btn small" onclick="cleanTemp()"><i data-ic="brush-cleaning"></i> Dọn
                   file tạm ngay</button></div>
             </div>
-            <div class="card cardpad">
-              <h3>Giao diện</h3>
-              <label class="fieldlabel">Kiểu hiển thị</label>
-              <select class="select w100" data-key="theme">
-                <option value="light">Sáng</option>
-                <option value="dark">Tối</option>
-              </select>
-              <label class="fieldlabel mt">Ngôn ngữ</label><select class="select w100" disabled>
-                <option>Tiếng Việt</option>
-              </select>
-            </div>
-            <div class="card cardpad">
-              <h3>Giới thiệu & Bản quyền</h3>
-              <div id="aboutBox"></div>
-              <div class="row mt"><button class="btn small primary" onclick="openLicense()"><i data-ic="key-round"></i>
-                  Quản lý bản quyền</button></div>
+          </div>
+
+          <!-- GIAO DIỆN & GIỚI THIỆU -->
+          <div class="setpanel hidden" data-panel="about">
+            <div class="grid cols2">
+              <div class="card cardpad">
+                <h3>Giao diện</h3>
+                <label class="fieldlabel">Kiểu hiển thị</label>
+                <select class="select w100" data-key="theme">
+                  <option value="light">Sáng</option>
+                  <option value="dark">Tối</option>
+                </select>
+                <label class="fieldlabel mt">Ngôn ngữ</label><select class="select w100" disabled>
+                  <option>Tiếng Việt</option>
+                </select>
+              </div>
+              <div class="card cardpad">
+                <h3>Giới thiệu &amp; Bản quyền</h3>
+                <div id="aboutBox"></div>
+                <div class="row mt"><button class="btn small primary" onclick="openLicense()"><i
+                      data-ic="key-round"></i> Quản lý bản quyền</button></div>
+              </div>
             </div>
           </div>
         </section>

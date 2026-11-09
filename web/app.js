@@ -103,6 +103,7 @@ async function init() {
   document.querySelectorAll('.nav').forEach(el => el.addEventListener('click', () => navigate(el.dataset.page)));
   document.querySelectorAll('#ocrModes button').forEach(b => b.onclick = () => setQuality(b.dataset.mode));
   document.querySelectorAll('#ocrResultTabs button').forEach(b => b.onclick = () => resultTab(b.dataset.result));
+  document.querySelectorAll('#settingsTabs button').forEach(b => b.onclick = () => settingsTab(b.dataset.settab));
   bindEditor();
   bindViewer();
   bindDrop();
@@ -1228,6 +1229,10 @@ async function renderModels() {
 async function importModel() { try { const r = await call('model_import'); if (!r.cancelled) { toast(r.message, [], 4200, r.ok ? 'ok' : 'warn'); renderModels(); } } catch (e) { fail(e); } }
 
 // ---------------------------------------------------------------- CÀI ĐẶT
+function settingsTab(name) {
+  document.querySelectorAll('#settingsTabs button').forEach(b => b.classList.toggle('active', b.dataset.settab === name));
+  document.querySelectorAll('#settings .setpanel').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== name));
+}
 function bindSettings() {
   document.querySelectorAll('#settings [data-key]').forEach(el => {
     el.addEventListener('change', () => {
@@ -1251,7 +1256,52 @@ function loadSettingsForm() {
     if (el.type === 'checkbox') el.checked = !!v; else el.value = v;
     if (el.type === 'range' && el.nextElementSibling) el.nextElementSibling.textContent = v + '%';
   });
+  renderMap('doc_type_map');
+  renderMap('agency_map');
   renderAbout();
+}
+// Bảng viết tắt (loại văn bản / cơ quan ban hành) cho tên file - có tìm kiếm và phân trang
+const MAP_UI = {
+  doc_type_map: { el: 'typeMap', pager: 'typePager', search: 'typeSearch', ten: 'Tên loại (OCR đọc được)' },
+  agency_map: { el: 'agencyMap', pager: 'agencyPager', search: 'agencySearch', ten: 'Tên cơ quan (OCR đọc được)' },
+};
+const MAP_PAGE = 8;
+function mapView(key) { return (S.mapView = S.mapView || {})[key] = (S.mapView || {})[key] || { q: '', page: 0 }; }
+// Lưu nhưng giữ nguyên mảng đang sửa (settings_save trả bản đã lọc dòng rỗng, dễ lệch chỉ số khi đang gõ)
+const saveMap = debounce(async key => { const local = S.settings[key]; await saveSettings({ [key]: local }); S.settings[key] = local; }, 500);
+function renderMap(key) {
+  const cfg = MAP_UI[key], all = S.settings[key] = S.settings[key] || [], view = mapView(key);
+  const q = (view.q || '').trim().toLowerCase();
+  const items = all.map((r, i) => ({ r, i })).filter(({ r }) => !q || `${r.ten || ''} ${r.tat || ''}`.toLowerCase().includes(q));
+  const pages = Math.max(1, Math.ceil(items.length / MAP_PAGE));
+  view.page = Math.min(Math.max(0, view.page), pages - 1);
+  const slice = items.slice(view.page * MAP_PAGE, view.page * MAP_PAGE + MAP_PAGE);
+  $(cfg.el).innerHTML = slice.length ? slice.map(({ r, i }) => `<div class="maprow"><input class="input" data-f="ten" data-i="${i}" placeholder="${cfg.ten}" value="${esc(r.ten)}"><span class="maparrow">${ic('arrow-right')}</span><input class="input" data-f="tat" data-i="${i}" placeholder="Viết tắt" value="${esc(r.tat)}"><button class="btn small ghost danger" data-del="${i}" title="Xóa dòng">${ic('x')}</button></div>`).join('')
+    : `<p class="small muted">${q ? 'Không tìm thấy mục khớp “' + esc(view.q) + '”.' : 'Chưa có mục nào. Bấm “Thêm” để tạo.'}</p>`;
+  $(cfg.el).querySelectorAll('input').forEach(inp => inp.oninput = () => { (S.settings[key] || [])[+inp.dataset.i][inp.dataset.f] = inp.value; saveMap(key); });
+  $(cfg.el).querySelectorAll('button[data-del]').forEach(b => b.onclick = () => { S.settings[key].splice(+b.dataset.del, 1); renderMap(key); saveMap(key); });
+  $(cfg.pager).innerHTML = `<span class="muted small">${items.length} mục${q ? ' khớp' : ''}${pages > 1 ? ` · trang ${view.page + 1}/${pages}` : ''}</span>`
+    + (pages > 1 ? `<span class="row" style="gap:6px"><button class="btn small" data-pg="-1" ${view.page <= 0 ? 'disabled' : ''}>${ic('arrow-left')}</button><button class="btn small" data-pg="1" ${view.page >= pages - 1 ? 'disabled' : ''}>${ic('arrow-right')}</button></span>` : '');
+  $(cfg.pager).querySelectorAll('button[data-pg]').forEach(b => b.onclick = () => { view.page += +b.dataset.pg; renderMap(key); });
+}
+function searchMap(key, q) { const v = mapView(key); v.q = q; v.page = 0; renderMap(key); }
+function addMapRow(key) {
+  const all = S.settings[key] = S.settings[key] || [];
+  all.push({ ten: '', tat: '' });
+  const v = mapView(key); v.q = '';
+  if ($(MAP_UI[key].search)) $(MAP_UI[key].search).value = '';
+  v.page = Math.ceil(all.length / MAP_PAGE) - 1;
+  renderMap(key);
+  const last = $(MAP_UI[key].el).querySelector('.maprow:last-child input');
+  if (last) last.focus();
+}
+async function resetMap(key) {
+  if (!await confirmBox('Về mặc định', 'Đưa bảng viết tắt này về danh sách mặc định? Các mục bạn thêm sẽ mất.', 'Khôi phục')) return;
+  S.settings[key] = (S.boot.defaults[key] || []).map(r => ({ ...r }));
+  const v = mapView(key); v.q = ''; v.page = 0;
+  if ($(MAP_UI[key].search)) $(MAP_UI[key].search).value = '';
+  renderMap(key);
+  saveSettings({ [key]: S.settings[key] });
 }
 function renderAbout() {
   const lic = S.license || {};

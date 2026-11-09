@@ -269,3 +269,16 @@ input.check{margin:0;flex-shrink:0}
 
 .sidebar::-webkit-scrollbar{width:5px}
 .historytable td:first-child>b,#recentList b{display:inline-flex;gap:6px;align-items:flex-start}.historytable td:first-child>b .ic,#recentList .ic{margin-top:2px;flex-shrink:0}
+/* --- Bảng viết tắt loại văn bản / cơ quan (Cài đặt) --- */
+.maptable{display:flex;flex-direction:column;gap:7px}
+.maprow{display:grid;grid-template-columns:minmax(0,1fr) 20px 110px 34px;align-items:center;gap:7px}
+.maprow .input{padding:8px 10px}
+.maprow .maparrow{display:flex;justify-content:center;color:var(--muted)}
+.maprow .maparrow .ic{width:15px;height:15px}
+.maprow .btn.small{padding:7px 8px}
+.maptools{margin-top:9px;flex-wrap:wrap}
+.setpanel{display:flex;flex-direction:column;gap:16px}
+#settingsTabs{flex-wrap:wrap}
+.mapsearch{margin-bottom:9px}
+.mappager{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px;min-height:32px}
+.mappager .btn.small{padding:6px 8px}

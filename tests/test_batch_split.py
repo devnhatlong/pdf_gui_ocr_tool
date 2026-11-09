@@ -12,13 +12,14 @@ from core.api import Api
 from core.jobs import JobManager
 from utils.ocr_engine import OcrResult
 
-HEADER = "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM\nĐộc lập - Tự do - Hạnh phúc\nSố: {n}/QĐ-UBND\nQUYẾT ĐỊNH"
+HEADER = ("ỦY BAN NHÂN DÂN HUYỆN X\nCỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM\nĐộc lập - Tự do - Hạnh phúc\n"
+          "Số: {n}/QĐ-UBND\nHuyện X, ngày 05 tháng 11 năm 2026\nQUYẾT ĐỊNH")
 
 
 class FakeSettings:
     def __init__(self, output_dir):
         self.values = {"output_dir": output_dir, "dpi": 72, "split_threshold": 70, "remove_blank_pages": True,
-                       "naming_rule": "{so}_{ngay}_{trichyeu}", "slash_replacement": "-"}
+                       "naming_rule": "{so}-{loai}-{coquan}_{ngay}_{trichyeu}", "slash_replacement": "-"}
 
     def get(self, key, default=None):
         return self.values.get(key, default)
@@ -139,8 +140,8 @@ class BatchSplitTests(unittest.TestCase):
 
     def test_split_names_use_configured_slash_replacement(self):
         self.api._settings.values["slash_replacement"] = "."
-        _, outputs = self.run_batch("rename", split="blank")
-        self.assertTrue(all(os.path.basename(p).startswith(("1.QĐ-UBND", "3.QĐ-UBND")) for p in outputs), outputs)
+        _, outputs = self.run_batch("rename", split="blank")   # dấu / của ngày 05/11/2026 -> 05.11.2026
+        self.assertTrue(all("05.11.2026" in os.path.basename(p) for p in outputs), outputs)
 
     def test_export_failure_marks_file_as_error(self):
         self.api.export_groups = lambda *a, **k: {"error": "Đĩa đầy"}

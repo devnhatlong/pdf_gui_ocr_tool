@@ -6,15 +6,18 @@ import os
 import threading
 
 import config
+from core import metadata
 
 DEFAULTS = {
     "output_dir": config.DEFAULT_OUTPUT_DIR,
     "export_format": "pdf",            # pdf | searchable_pdf | docx | xlsx | txt
     "keep_original": True,
     "folder_by_date": True,
-    "naming_rule": "{so}_{ngay}_{trichyeu}",
+    "naming_rule": "{so}-{loai}-{coquan}_{ngay}_{trichyeu}",
     "slash_replacement": "-",          # chuỗi thay cho dấu / trong tên file
     "filename_ascii": True,            # tên file không dấu, trích yếu viết liền (VeViecBoNhiem)
+    "doc_type_map": list(metadata.DEFAULT_TYPE_MAP),     # bảng viết tắt loại văn bản (sửa trong Cài đặt)
+    "agency_map": list(metadata.DEFAULT_AGENCY_MAP),     # bảng viết tắt cơ quan ban hành
     "overwrite": False,                # False: tự thêm (1), (2)... khi trùng tên
     "dpi": 200,
     "device": "auto",                  # auto | cpu
@@ -38,6 +41,8 @@ DEFAULTS = {
 
 
 OLD_NAMING_RULE = "{loai}_{coquan}_{so}_{ngay}_{trichyeu}"   # mặc định cũ, tự đổi sang quy tắc mới
+# Các quy tắc là mặc định của bản cũ (khi {so} còn gồm cả loại/cơ quan) -> tự nâng lên quy tắc mới
+SUPERSEDED_RULES = {OLD_NAMING_RULE, "{so}_{ngay}_{trichyeu}"}
 
 
 class Settings:
@@ -50,7 +55,7 @@ class Settings:
                 self.data.update({k: v for k, v in json.load(f).items() if k in DEFAULTS})
         except (OSError, ValueError):
             pass
-        if self.data["naming_rule"] == OLD_NAMING_RULE:
+        if self.data["naming_rule"] in SUPERSEDED_RULES:
             self.data["naming_rule"] = DEFAULTS["naming_rule"]
 
     def get(self, key):

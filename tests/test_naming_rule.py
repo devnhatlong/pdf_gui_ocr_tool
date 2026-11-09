@@ -7,7 +7,7 @@ import unittest
 from core import metadata
 from core.settings import DEFAULTS, OLD_NAMING_RULE, Settings
 
-FIELDS = {"loai": "Quyết định", "coquan": "UBND", "so": "123/QĐ-UBND", "ngay": "05/11/2026",
+FIELDS = {"loai": "QĐ", "coquan": "UBND", "so": "123/QĐ-UBND", "ngay": "05/11/2026",
           "trichyeu": "Về việc phê duyệt kế hoạch"}
 
 
@@ -20,28 +20,32 @@ class AsciiNameTests(unittest.TestCase):
 
     def test_summary_joined_without_accents(self):
         fields = {"so": "56/BC-CAT", "ngay": "19/10/2026", "trichyeu": "Quyết định bổ nhiệm kỹ thuật viên sơ cấp"}
-        self.assertEqual(self.build(fields), "56-BC-CAT_19-10-2026_QuyetDinhBoNhiemKyThuatVienSoCap")
+        self.assertEqual(self.build(fields, "{so}_{ngay}_{trichyeu}"), "56_19-10-2026_QuyetDinhBoNhiemKyThuatVienSoCap")
 
     def test_d_letter_and_punctuation(self):
         fields = {"so": "496/BCĐX-PV01", "trichyeu": "V/v đề nghị kiểm tra, sửa chữa (đợt 2) tháng 9/2026"}
-        self.assertEqual(self.build(fields, "{so}_{trichyeu}"), "496-BCDX-PV01_VeViecDeNghiKiemTraSuaChuaDot2Thang9-2026")
+        self.assertEqual(self.build(fields, "{so}_{trichyeu}"), "496_VeViecDeNghiKiemTraSuaChuaDot2Thang9-2026")
 
     def test_other_fields_lose_accents(self):
-        self.assertEqual(self.build(FIELDS, "{loai}_{coquan}_{so}"), "Quyet dinh_UBND_123-QD-UBND")
+        self.assertEqual(self.build(FIELDS, "{loai}_{coquan}_{so}"), "QD_UBND_123")
 
     def test_off_keeps_vietnamese(self):
         fields = {"so": "56/BC-CAT", "trichyeu": "Quyết định bổ nhiệm"}
-        self.assertEqual(metadata.build_filename(fields, "{so}_{trichyeu}", ext=""), "56-BC-CAT_Quyết định bổ nhiệm")
+        self.assertEqual(metadata.build_filename(fields, "{so}_{trichyeu}", ext=""), "56_Quyết định bổ nhiệm")
+
+    def test_number_only_before_slash(self):
+        for raw, num in (("1794/QĐ-XPHC", "1794"), ("496/BCĐX-PV01-CNTT", "496"), ("53/BC-CNTT", "53"), ("88", "88")):
+            self.assertEqual(self.build({"so": raw}, "{so}"), num)
 
     def test_api_uses_setting(self):
         from types import SimpleNamespace
         from core.api import Api
-        values = {"naming_rule": "{so}_{trichyeu}", "slash_replacement": "-", "filename_ascii": True}
+        values = {"naming_rule": "{so}_{loai}_{trichyeu}", "slash_replacement": "-", "filename_ascii": True}
         api = SimpleNamespace(_settings=SimpleNamespace(get=values.get))
-        fields = {"so": "1/QĐ", "trichyeu": "Về việc thi đua"}
-        self.assertEqual(Api._file_name(api, fields), "1-QD_VeViecThiDua.pdf")
+        fields = {"so": "1794/QĐ-XPHC", "loai": "QĐ", "trichyeu": "Về việc thi đua"}
+        self.assertEqual(Api._file_name(api, fields), "1794_QD_VeViecThiDua.pdf")
         values["filename_ascii"] = False
-        self.assertEqual(Api._file_name(api, fields), "1-QĐ_Về việc thi đua.pdf")
+        self.assertEqual(Api._file_name(api, fields), "1794_QĐ_Về việc thi đua.pdf")
 
 
 class NamingRuleTests(unittest.TestCase):
@@ -52,15 +56,15 @@ class NamingRuleTests(unittest.TestCase):
                 json.dump(saved, f)
             return Settings(path).get("naming_rule")
 
-    def test_default_rule_is_number_date_summary(self):
-        self.assertEqual(DEFAULTS["naming_rule"], "{so}_{ngay}_{trichyeu}")
+    def test_default_rule_is_number_type_agency_date_summary(self):
+        self.assertEqual(DEFAULTS["naming_rule"], "{so}-{loai}-{coquan}_{ngay}_{trichyeu}")
         self.assertEqual(metadata.build_filename(FIELDS, DEFAULTS["naming_rule"]),
                          "123-QĐ-UBND_05-11-2026_Về việc phê duyệt kế hoạch.pdf")
 
     def test_user_example(self):
-        fields = {"so": "56/BC-CAT", "ngay": "19/10/2026",
+        fields = {"loai": "BC", "coquan": "CAT", "so": "56/BC-CAT", "ngay": "19/10/2026",
                   "trichyeu": "Quyết định bổ nhiệm kỹ thuật viên sơ cấp"}
-        self.assertEqual(metadata.build_filename(fields, ext=""),
+        self.assertEqual(metadata.build_filename(fields, DEFAULTS["naming_rule"], ext=""),
                          "56-BC-CAT_19-10-2026_Quyết định bổ nhiệm kỹ thuật viên sơ cấp")
 
     def test_summary_all_caps_and_illegal_characters(self):
@@ -93,16 +97,15 @@ class NamingRuleTests(unittest.TestCase):
                 self.assertEqual(metadata.build_filename(fields, "{trichyeu}", ext=""), expected)
 
     def test_slash_replacement_is_configurable(self):
-        cases = {"-": "123-QĐ-UBND_05-11-2026", ".": "123.QĐ-UBND_05.11.2026", "_": "123_QĐ-UBND_05_11_2026",
-                 "--": "123--QĐ-UBND_05--11--2026", " ": "123 QĐ-UBND_05 11 2026", "": "123QĐ-UBND_05112026",
-                 "~": "123~QĐ-UBND_05~11~2026"}
+        cases = {"-": "123_05-11-2026", ".": "123_05.11.2026", "_": "123_05_11_2026",
+                 "--": "123_05--11--2026", " ": "123_05 11 2026", "": "123_05112026", "~": "123_05~11~2026"}
         for slash, expected in cases.items():
             with self.subTest(slash=slash):
                 self.assertEqual(metadata.build_filename(FIELDS, "{so}_{ngay}", ext="", slash=slash), expected)
 
     def test_slash_replacement_cannot_add_windows_forbidden_characters(self):
-        name = metadata.build_filename(FIELDS, "{so}", ext="", slash='\\/:*?"<>|\x01.')
-        self.assertEqual(name, "123.QĐ-UBND")
+        name = metadata.build_filename(FIELDS, "{ngay}", ext="", slash='\\/:*?"<>|\x01.')
+        self.assertEqual(name, "05.11.2026")
 
     def test_slash_replacement_default_and_saved_value(self):
         self.assertEqual(DEFAULTS["slash_replacement"], "-")
@@ -112,7 +115,7 @@ class NamingRuleTests(unittest.TestCase):
             self.assertEqual(Settings(path).get("slash_replacement"), ".")
 
     def test_missing_part_drops_its_separator(self):
-        self.assertEqual(metadata.build_filename({**FIELDS, "ngay": ""}),
+        self.assertEqual(metadata.build_filename({**FIELDS, "ngay": ""}, "{so}-{loai}-{coquan}_{ngay}_{trichyeu}"),
                          "123-QĐ-UBND_Về việc phê duyệt kế hoạch.pdf")
 
     def test_number_keeps_letter_d_with_stroke(self):
@@ -130,6 +133,9 @@ class NamingRuleTests(unittest.TestCase):
 
     def test_saved_custom_rule_is_kept(self):
         self.assertEqual(self.load({"naming_rule": "{ngay}_{so}"}), "{ngay}_{so}")
+
+    def test_old_number_date_summary_default_moves_to_new_rule(self):
+        self.assertEqual(self.load({"naming_rule": "{so}_{ngay}_{trichyeu}"}), DEFAULTS["naming_rule"])
 
 
 if __name__ == "__main__":

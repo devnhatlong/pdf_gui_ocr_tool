@@ -324,48 +324,185 @@ DOC_TYPES = [
 ]
 _TYPE_CODES = {code.upper(): code for code, _ in DOC_TYPES} | {"QD": "QĐ"}
 
-# Tên cơ quan (không dấu, viết thường) -> viết tắt dùng trong tên file
-_AGENCY_ABBR = [
-    (r"^(uy ban nhan dan|ubnd)\b", "UBND"),
-    (r"^cong an (tinh|thanh pho)\b", "CAT"),
-    (r"^cong an (huyen|quan|thi xa)\b", "CAH"),
-    (r"^cong an (xa|phuong|thi tran)\b", "CAX"),
-    (r"^(hoi dong nhan dan|hdnd)\b", "HĐND"),
-    (r"^(dang uy|dang bo|tinh uy|huyen uy|thanh uy)\b", "ĐU"),
-    (r"^so\s", "SỞ"),
-    (r"^bo\s", "BỘ"),
+# Bảng viết tắt mặc định - người dùng sửa / thêm / xóa trong Cài đặt (settings: doc_type_map, agency_map)
+DEFAULT_TYPE_MAP = [
+    {"ten": "Báo cáo đề xuất", "tat": "BCĐX"},
+    {"ten": "Báo cáo", "tat": "BC"},
+    {"ten": "Công văn", "tat": "CV"},
+    {"ten": "Kế hoạch", "tat": "KH"},
+    {"ten": "Kết luận", "tat": "KL"},
+    {"ten": "Quyết định", "tat": "QĐ"},
+    {"ten": "Nghị quyết", "tat": "NQ"},
+    {"ten": "Tờ trình", "tat": "TTr"},
+    {"ten": "Thông báo", "tat": "TB"},
+    {"ten": "Phương án", "tat": "PA"},
+    {"ten": "Chương trình", "tat": "CTr"},
+    {"ten": "Giấy mời", "tat": "GM"},
+    {"ten": "Danh sách", "tat": "DS"},
+    {"ten": "Chỉ thị", "tat": "CT"},
+    {"ten": "Hướng dẫn", "tat": "HD"},
+]
+DEFAULT_AGENCY_MAP = [
+    {"ten": "Ủy ban nhân dân", "tat": "UBND"},
+    {"ten": "Hội đồng nhân dân", "tat": "HĐND"},
+    {"ten": "Công an tỉnh", "tat": "CAT"},
+    {"ten": "Công an thành phố", "tat": "CATP"},
+    {"ten": "Công an huyện", "tat": "CAH"},
+    {"ten": "Công an xã", "tat": "CAX"},
+    # Các phòng / đơn vị Công an tỉnh (số ký hiệu dùng mã này)
+    {"ten": "Phòng Tham mưu", "tat": "PV01"},
+    {"ten": "Phòng Hồ sơ", "tat": "PV06"},
+    {"ten": "Phòng Tổ chức cán bộ", "tat": "PX01"},
+    {"ten": "Phòng Công tác đảng và công tác chính trị", "tat": "PX03"},
+    {"ten": "Thanh tra Công an tỉnh", "tat": "PX05"},
+    {"ten": "Cơ quan Ủy ban kiểm tra Đảng ủy Công an tỉnh", "tat": "PX06"},
+    {"ten": "Phòng Hậu cần", "tat": "PH10"},
+    {"ten": "Phòng An ninh đối ngoại", "tat": "PA01"},
+    {"ten": "Phòng An ninh đối nội", "tat": "PA02"},
+    {"ten": "Phòng An ninh chính trị nội bộ", "tat": "PA03"},
+    {"ten": "Phòng An ninh kinh tế", "tat": "PA04"},
+    {"ten": "Phòng ANM & PCTP sử dụng CNC", "tat": "PA05"},
+    {"ten": "Phòng Kỹ thuật nghiệp vụ", "tat": "PA06"},
+    {"ten": "Phòng Quản lý xuất nhập cảnh", "tat": "PA08"},
+    {"ten": "Phòng An ninh điều tra", "tat": "PA09"},
+    {"ten": "Văn phòng cơ quan Cảnh sát điều tra", "tat": "PC01"},
+    {"ten": "Phòng Cảnh sát điều tra tội phạm về trật tự xã hội", "tat": "PC02"},
+    {"ten": "Phòng Cảnh sát điều tra tội phạm về tham nhũng, kinh tế, buôn lậu", "tat": "PC03"},
+    {"ten": "Phòng Cảnh sát điều tra tội phạm về ma túy", "tat": "PC04"},
+    {"ten": "Phòng Cảnh sát quản lý hành chính về trật tự xã hội", "tat": "PC06"},
+    {"ten": "Phòng Cảnh sát phòng cháy, chữa cháy và cứu nạn, cứu hộ", "tat": "PC07"},
+    {"ten": "Phòng Cảnh sát giao thông", "tat": "PC08"},
+    {"ten": "Phòng Kỹ thuật hình sự", "tat": "PC09"},
+    {"ten": "Phòng Cảnh sát thi hành án hình sự và hỗ trợ tư pháp", "tat": "PC10"},
+    {"ten": "Trại Giam số 01", "tat": "TTG01"},
+    {"ten": "Trại Giam số 02", "tat": "TTG02"},
+    {"ten": "Trại Giam số 03", "tat": "TTG03"},
+    {"ten": "Phòng Cảnh sát cơ động/Cảnh sát bảo vệ", "tat": "PK02"},
+    # Các đội / đơn vị thuộc Phòng Tham mưu
+    {"ten": "Đội Tham mưu Tổng hợp", "tat": "TMTH"},
+    {"ten": "Đội Tham mưu An ninh", "tat": "TMAN"},
+    {"ten": "Đội Tham mưu Cảnh sát", "tat": "TMCS"},
+    {"ten": "Đội Công nghệ thông tin", "tat": "CNTT"},
+    {"ten": "Đội CNTT", "tat": "CNTT"},
+    {"ten": "Đội Viễn thông Cơ yếu", "tat": "VTCY"},
+    {"ten": "Đội Pháp chế và Quản lý khoa học", "tat": "PC"},
+    {"ten": "Trung tâm thông tin chỉ huy", "tat": "TTTTCH"},
+    {"ten": "Xây dựng phong trào", "tat": "PT"},
+    {"ten": "Đảng ủy", "tat": "ĐU"},
+    {"ten": "Sở", "tat": "SỞ"},
+    {"ten": "Bộ", "tat": "BỘ"},
 ]
 _extractor = _Extractor()
 remove_accents = _extractor.remove_accents
 
 
-def detect_agency(text):
-    """Cơ quan ban hành: dòng viết hoa đầu tiên ở góc trên (bỏ quốc hiệu). Trả về (tên đầy đủ, viết tắt)."""
-    for raw in text.splitlines()[:6]:
+def _as_pairs(mapping, default):
+    """Chuẩn hóa bảng viết tắt về [(tên, viết_tắt)]. mapping None -> dùng mặc định; rỗng -> rỗng (tôn trọng người dùng)."""
+    if mapping is None:
+        mapping = default
+    pairs = []
+    for item in mapping:
+        if isinstance(item, dict):
+            ten, tat = item.get("ten", ""), item.get("tat", "")
+        elif isinstance(item, (list, tuple)) and len(item) == 2:
+            ten, tat = item
+        else:
+            continue
+        ten, tat = str(ten).strip(), str(tat).strip()
+        if ten and tat:
+            pairs.append((ten, tat))
+    return pairs
+
+
+def _match_type_code(code, pairs):
+    """Đổi mã loại về chữ viết tắt chuẩn trong bảng (QD -> QĐ); mã lạ giữ nguyên (BCĐX)."""
+    for _ten, tat in pairs:
+        if remove_accents(tat).upper() == remove_accents(code).upper():
+            return tat
+    return code.upper()
+
+
+def resolve_type(text, so_ky_hieu, type_map=None):
+    """Loại văn bản: ưu tiên mã chữ ngay sau dấu / của số ký hiệu (1794/QĐ-XPHC -> QĐ).
+    Số dạng số/ĐƠNVỊ (1831/PV01-CNTT, mã đơn vị có số) là công văn -> CV.
+    Không có / thì tra theo chữ tiêu đề OCR (DANH SÁCH, BÁO CÁO...). Mã lạ vẫn giữ (496/BCĐX -> BCĐX)."""
+    pairs = _as_pairs(type_map, DEFAULT_TYPE_MAP)
+    m = re.search(r"/\s*([A-Za-z0-9Đđ]+)", so_ky_hieu or "")
+    if m:
+        first = m.group(1)
+        if re.fullmatch(r"\d{4}", first):   # 45/2026/NĐ-CP: bỏ năm, lấy mã sau dấu / kế tiếp
+            m2 = re.search(r"/\s*\d{4}\s*/\s*([A-Za-zĐđ]+)", so_ky_hieu)
+            first = m2.group(1) if m2 else first
+        if re.search(r"[A-Za-zĐđ]", first) and not re.search(r"\d", first):
+            return _match_type_code(first, pairs)
+        # mã sau / có chữ số (PV01...) = mã đơn vị, số không ghi loại -> công văn
+        for ten, tat in pairs:
+            if remove_accents(ten).strip() == "cong van":
+                return tat
+        return "CV"
+    lines = [ln for ln in (remove_accents(x).strip() for x in text.splitlines()[:12]) if ln]
+    best = None
+    for ten, tat in pairs:
+        key = remove_accents(ten).strip()
+        if key and any(ln == key or ln.startswith(key + " ") for ln in lines):
+            if best is None or len(key) > best[0]:
+                best = (len(key), tat)
+    return best[1] if best else ""
+
+
+# Dòng tiêu đề văn bản (không dấu): gặp thì dừng gom cơ quan (dùng khi trang không có dòng "Số:")
+_HEADING_STOPS = ("bao cao", "cong van", "ke hoach", "ket luan", "quyet dinh", "nghi quyet",
+                  "to trinh", "thong bao", "phuong an", "chuong trinh", "giay moi", "danh sach",
+                  "chi thi", "huong dan", "bien ban", "phu luc", "kinh gui", "bang ", "bieu ")
+
+
+def detect_agency(text, agency_map=None):
+    """Cơ quan ban hành = dòng viết hoa ngay trên 'Số:' (1 dòng thì lấy chính dòng đó).
+    Trả về (tên đầy đủ, viết tắt theo bảng cấu hình)."""
+    pairs = _as_pairs(agency_map, DEFAULT_AGENCY_MAP)
+    header = []
+    for raw in text.splitlines()[:8]:
         line = raw.split("   ")[0].strip()          # cột trái của hàng (quốc hiệu nằm cột phải)
         plain = remove_accents(line)
-        if not line or "cong hoa" in plain or "doc lap" in plain or plain.startswith(("so", "s0")) and ":" in line:
+        if not line:
+            continue
+        if re.search(r"\bs[o0]\s*[:.]", plain) or re.search(r"\d\s*/\s*[a-zđ]", plain):   # tới dòng "Số: 123/..." thì dừng ("Trại giam số 02" không tính)
+            break
+        if plain.startswith(_HEADING_STOPS):   # tới tiêu đề (DANH SÁCH, BÁO CÁO...) thì dừng
+            break
+        if "cong hoa" in plain or "doc lap" in plain or "hanh phuc" in plain:
             continue
         letters = [c for c in line if c.isalpha()]
-        if len(letters) < 4 or not all(c.isupper() for c in letters):
+        if len(letters) < 3 or not all(c.isupper() for c in letters):
             continue
-        for pattern, abbr in _AGENCY_ABBR:
-            if re.search(pattern, plain):
-                return line, abbr
-        words = [w for w in re.split(r"\s+", line) if w]
-        return line, "".join(w[0] for w in words[:4]).upper()
-    return "", ""
+        header.append(line)
+    if not header:
+        return "", ""
+    name = header[-1]
+    return name, _abbr_for_agency(name, pairs)
 
 
-def extract_metadata(text):
-    """Thông tin văn bản từ văn bản OCR (theo thứ tự đọc)."""
+def _abbr_for_agency(name, pairs):
+    plain = remove_accents(name).strip()
+    best = None
+    for ten, tat in pairs:
+        key = remove_accents(ten).strip()
+        if key and (plain == key or re.search(r"\b" + re.escape(key) + r"\b", plain)):
+            if best is None or len(key) > best[0]:
+                best = (len(key), tat)
+    if best:
+        return best[1]
+    words = [w for w in re.split(r"\s+", name) if w]
+    return "".join(w[0] for w in words[:4]).upper()
+
+
+def extract_metadata(text, type_map=None, agency_map=None):
+    """Thông tin văn bản từ văn bản OCR (theo thứ tự đọc). type_map / agency_map: bảng viết tắt từ Cài đặt."""
     meta = _extractor.extract_metadata_from_ocr(text)
-    if not meta["loai_van_ban"] and meta["so_ky_hieu"]:
-        # Số ký hiệu dạng 45/CV-UBND -> loại văn bản CV
-        m = re.search(r"/([A-ZĐ]+[a-z]*)-", meta["so_ky_hieu"])
-        if m and m.group(1).upper() in _TYPE_CODES:
-            meta["loai_van_ban"] = _TYPE_CODES[m.group(1).upper()]
-    meta["co_quan"], meta["co_quan_viet_tat"] = detect_agency(text)
+    loai = resolve_type(text, meta["so_ky_hieu"], type_map)
+    if loai:
+        meta["loai_van_ban"] = loai
+    meta["co_quan"], meta["co_quan_viet_tat"] = detect_agency(text, agency_map)
     return meta
 
 
@@ -391,12 +528,14 @@ def _joined(text):
 
 def build_filename(fields, rule="{so}_{ngay}_{trichyeu}", ext=".pdf", slash="-", ascii_name=False):
     """fields: loai, coquan, so, ngay (dd/mm/yyyy), trichyeu. Phần rỗng được bỏ cùng dấu nối.
-    slash: chuỗi người dùng chọn thay cho dấu / (không dùng được trong tên file): 56/BC-CAT -> 56-BC-CAT.
+    slash: chuỗi người dùng chọn thay cho dấu / (không dùng được trong tên file): 123/BC-CAT -> 123-BC-CAT.
     ascii_name: tên file không dấu, trích yếu viết liền (VeViecBoNhiem)."""
+    so_raw = (fields.get("so") or "").strip()
+    so_match = re.match(r"\s*(\d+[A-Za-zĐđ]?)", so_raw)   # {so} chỉ lấy số thứ tự trước dấu / (1794/QĐ-XPHC -> 1794)
     values = {
         "loai": (fields.get("loai") or "").strip(),
         "coquan": (fields.get("coquan") or "").strip(),
-        "so": (fields.get("so") or "").strip(),
+        "so": so_match.group(1) if so_match else so_raw,
         "ngay": (fields.get("ngay") or "").strip(),
         "trichyeu": _summary_part(re.sub(r"\s+", " ", fields.get("trichyeu") or "").strip()),
     }

@@ -114,6 +114,7 @@ class Api:
             "quality": [{"key": k, "label": v} for k, v in QUALITY.items()],
             "formats": [{"key": k, "label": v[0]} for k, v in exporters.FORMATS.items()],
             "doc_types": [{"code": c, "label": n} for c, n in metadata.DOC_TYPES],
+            "defaults": {"doc_type_map": metadata.DEFAULT_TYPE_MAP, "agency_map": metadata.DEFAULT_AGENCY_MAP},
         }
 
     @_safe
@@ -438,7 +439,9 @@ class Api:
         """Thông tin văn bản (từ trang đầu đã OCR) + tên file gợi ý theo quy tắc đặt tên."""
         doc = self._doc(doc_id)
         first = next((p for p in doc.pages if p.uid in doc.ocr), None)
-        meta = metadata.extract_metadata(doc.page_text(first.uid)) if first else {}
+        meta = metadata.extract_metadata(doc.page_text(first.uid),
+                                         self._settings.get("doc_type_map"),
+                                         self._settings.get("agency_map")) if first else {}
         fields = metadata.meta_to_fields(meta) if meta else {}
         return {"meta": meta, "fields": fields,
                 "filename": self._file_name(fields) if fields else ""}
@@ -954,6 +957,11 @@ class Api:
     # ==================================================
     @_safe
     def settings_save(self, values):
+        for key in ("doc_type_map", "agency_map"):
+            if isinstance(values.get(key), list):   # bỏ dòng rỗng hẳn, giữ dòng đang gõ dở
+                rows = [{"ten": str(r.get("ten", "")).strip(), "tat": str(r.get("tat", "")).strip()}
+                        for r in values[key] if isinstance(r, dict)]
+                values[key] = [r for r in rows if r["ten"] or r["tat"]]
         old_device = self._settings.get("device")
         data = self._settings.update(values)
         if data["device"] != old_device:

@@ -63,7 +63,7 @@ def score_page(ocr, prev_ocr, page, prev_page, settings):
             if any(c.isalpha() and c.isupper() for c in line[:3]):
                 add(2.0, f"Tiêu đề \"{line.strip()[:30]}\"")
                 break
-    agency, _abbr = metadata.detect_agency("\n".join(top_lines[:4]))
+    agency, _abbr = metadata.detect_agency("\n".join(top_lines[:4]), settings.get("agency_map"))
     if agency:
         add(1.0, "Có tên cơ quan ban hành")
     if "kinh gui" in top:
@@ -187,7 +187,7 @@ def build_groups(doc, starts, settings, names=None):
     rule = settings.get("naming_rule")
     for i, g in enumerate(groups):
         text = doc.page_text(g["uids"][0])
-        meta = metadata.extract_metadata(text)
+        meta = metadata.extract_metadata(text, settings.get("doc_type_map"), settings.get("agency_map"))
         g["meta"] = meta
         auto = metadata.build_filename(metadata.meta_to_fields(meta), rule, ext="",
                                        slash=settings.get("slash_replacement", "-"),
