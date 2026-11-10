@@ -390,6 +390,7 @@ DEFAULT_AGENCY_MAP = [
     {"ten": "Xây dựng phong trào", "tat": "PT"},
     {"ten": "Đảng ủy", "tat": "ĐU"},
     {"ten": "Sở", "tat": "SỞ"},
+    {"ten": "Bộ Công an", "tat": "BCA"},
     {"ten": "Bộ", "tat": "BỘ"},
 ]
 _extractor = _Extractor()
@@ -547,6 +548,18 @@ def to_ascii(text):
 def _joined(text):
     """Viết liền, hoa chữ đầu mỗi từ: Về việc bổ nhiệm -> VeViecBoNhiem (giữ dấu / để thay sau)."""
     return "".join(w[:1].upper() + w[1:] for w in re.findall(r"[A-Za-z0-9/\-]+", text))
+
+
+def sheet_range(positions, per_sheet=2):
+    """Số tờ của văn bản từ vị trí trang (1-based). 1 tờ = per_sheet trang (quét 2 mặt = 2).
+    Tờ của trang N = làm tròn lên N/per_sheet. Trả về 'a' hoặc 'a-b' (tờ đầu -> tờ cuối)."""
+    positions = [p for p in positions if p]
+    if not positions:
+        return ""
+    per_sheet = max(1, int(per_sheet or 1))
+    a = (min(positions) + per_sheet - 1) // per_sheet
+    b = (max(positions) + per_sheet - 1) // per_sheet
+    return str(a) if a == b else f"{a}-{b}"
 
 
 def so_number(value):

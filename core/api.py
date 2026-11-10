@@ -725,23 +725,16 @@ class Api:
         return {"folder": folder, "outputs": outputs, "register": register}
 
     def _export_register(self, doc, groups, folder):
-        """Ghi sổ danh mục văn bản (Excel) cho các nhóm đã xuất."""
-        pos = {p.uid: i + 1 for i, p in enumerate(doc.pages)}
+        """Ghi sổ danh mục văn bản (Excel) cho các nhóm đã xuất. Cột Tờ số tính theo số tờ giấy."""
+        per_sheet = self._settings.get("sheet_pages") or 2
+        count_blank = not self._settings.get("remove_blank_pages")   # đếm số tờ theo cùng cờ "Bỏ trang trắng khi xuất"
+        seq = [p for p in doc.pages if count_blank or not getattr(p, "blank", False)]
+        pos = {p.uid: i + 1 for i, p in enumerate(seq)}   # vị trí trang (đếm cả trang trắng tuỳ cài đặt)
         rows = []
         for g in groups:
             info = g.get("info") or {}
             meta = g.get("meta") or {}
-            to_so = info.get("to_so")
-            if not to_so:   # không có từ giao diện -> tính từ vị trí trang trong tài liệu
-                nums = sorted(pos[u] for u in g.get("uids", []) if u in pos)
-                if not nums:
-                    to_so = ""
-                elif len(nums) == 1:
-                    to_so = str(nums[0])
-                elif nums[-1] - nums[0] + 1 == len(nums):
-                    to_so = f"{nums[0]}-{nums[-1]}"
-                else:
-                    to_so = ", ".join(map(str, nums))
+            to_so = info.get("to_so") or metadata.sheet_range([pos[u] for u in g.get("uids", []) if u in pos], per_sheet)
             rows.append({
                 "so": info.get("so_ky_hieu") or meta.get("so_ky_hieu", ""),
                 "ngay": info.get("ngay") or meta.get("ngay_ban_hanh", ""),

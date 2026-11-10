@@ -633,6 +633,12 @@
               <p><label><input type="checkbox" class="check" data-key="keep_original"> Giữ bản gốc sau xử lý</label></p>
               <p><label><input type="checkbox" class="check" data-key="overwrite"> Cho phép ghi đè file trùng tên (tắt:
                   tự thêm (1), (2)…)</label></p>
+              <label class="fieldlabel mt">Số trang mỗi tờ (cột "Tờ số" trong Excel danh mục)</label>
+              <input class="input" type="number" min="1" max="4" data-key="sheet_pages" data-type="int"
+                style="width:130px">
+              <p class="small muted">Quét 2 mặt (mặt trước + mặt sau) thì 1 tờ = 2 trang. Tờ số = làm tròn lên
+                trang ÷ số này. Để 1 nếu quét 1 mặt. Việc đếm trang trắng theo cờ "Bỏ trang trắng khi xuất" ở tab Tách
+                tài liệu (bật: không đếm trang trắng; tắt: đếm cả trang trắng).</p>
             </div>
           </div>
 

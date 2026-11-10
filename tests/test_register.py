@@ -5,7 +5,22 @@ import unittest
 
 from openpyxl import load_workbook
 
-from core import exporters
+from core import exporters, metadata
+
+
+class SheetRangeTests(unittest.TestCase):
+    def test_two_pages_per_sheet(self):
+        self.assertEqual(metadata.sheet_range([1, 2], 2), "1")       # trang 1-2 = tờ 1
+        self.assertEqual(metadata.sheet_range([1, 2, 3, 4], 2), "1-2")
+        self.assertEqual(metadata.sheet_range([3, 4, 5], 2), "2-3")  # trang 3,4=tờ2; 5=tờ3
+        self.assertEqual(metadata.sheet_range([6], 2), "3")
+        self.assertEqual(metadata.sheet_range([1, 2, 5], 2), "1-3")  # span có trang trắng ở giữa
+
+    def test_one_page_per_sheet(self):
+        self.assertEqual(metadata.sheet_range([1, 2, 3], 1), "1-3")  # quét 1 mặt: tờ = trang
+
+    def test_empty(self):
+        self.assertEqual(metadata.sheet_range([], 2), "")
 
 
 class RegisterExcelTests(unittest.TestCase):

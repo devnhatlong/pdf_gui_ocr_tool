@@ -5,7 +5,7 @@ const S = {
   boot: null, settings: {}, docs: {}, thumbs: {}, page: 'overview',
   ocrDoc: '', ocrUid: '', ocrResult: null, img: null, zoom: 1, showBoxes: false, regionMode: false, quality: 'fast',
   savedRange: null, splitDoc: '', groups: [], scores: {}, sel: new Set(), anchor: null, cur: null,
-  selGroup: 0, groupNames: {}, namesByDoc: {}, groupFields: {}, fieldsByDoc: {}, pageImgs: new Map(), viewKey: null, splitZoom: 1, dragUids: null, batchFiles: [], batchJob: null, jobs: {}, handled: new Set(), pollVersion: 0,
+  selGroup: 0, groupNames: {}, namesByDoc: {}, groupFields: {}, fieldsByDoc: {}, groupSecrecy: {}, secrecyByDoc: {}, pageImgs: new Map(), viewKey: null, splitZoom: 1, dragUids: null, batchFiles: [], batchJob: null, jobs: {}, handled: new Set(), pollVersion: 0,
   system: null, cancelRequests: new Set(),
 };
 const GROUP_COLORS = ['#2164eb', '#0b9d70', '#f3a933', '#e75b67', '#8b5cf6', '#06b6d4', '#d946ef', '#84cc16'];
@@ -705,6 +705,7 @@ async function selectSplitDoc(id) {
   S.sel = new Set(); S.cur = null; S.selGroup = 0; S.viewKey = null;
   S.groupNames = S.namesByDoc[id] = S.namesByDoc[id] || {};
   S.groupFields = S.fieldsByDoc[id] = S.fieldsByDoc[id] || {};
+  S.groupSecrecy = S.secrecyByDoc[id] = S.secrecyByDoc[id] || {};
   $('btnSplitTools').disabled = $('btnExportGroups').disabled = false;
   $('btnAnalyze').disabled = Object.values(S.jobs).some(j => j.kind === 'split' && j.meta.doc_id === id && ['running', 'queued', 'paused', 'cancelling'].includes(j.status));
   try {
@@ -712,8 +713,8 @@ async function selectSplitDoc(id) {
     await loadSplitGroups();
   } catch (e) { fail(e); }
 }
-function resetGroupNames() { S.groupNames = S.namesByDoc[S.splitDoc] = {}; S.groupFields = S.fieldsByDoc[S.splitDoc] = {}; }
-function forgetGroup(uid) { delete S.groupNames[uid]; delete S.groupFields[uid]; }
+function resetGroupNames() { S.groupNames = S.namesByDoc[S.splitDoc] = {}; S.groupFields = S.fieldsByDoc[S.splitDoc] = {}; S.groupSecrecy = S.secrecyByDoc[S.splitDoc] = {}; }
+function forgetGroup(uid) { delete S.groupNames[uid]; delete S.groupFields[uid]; delete S.groupSecrecy[uid]; }
 async function loadSplitGroups() {
   const r = await call('split_groups', S.splitDoc);
   S.groups = r.groups || []; S.scores = r.scores || {};
@@ -852,7 +853,11 @@ function renderSplitFields(g) {
   const keys = splitFieldKeys(), sig = keys.join(',');
   if ($('splitFields').dataset.sig !== sig) {
     $('splitFields').dataset.sig = sig;
-    $('splitFields').innerHTML = keys.map(k => `<div${k === 'trichyeu' ? ' class="fieldwide"' : ''}><label class="fieldlabel">${SPLIT_FIELDS[k].label}</label><input class="input w100" data-fk="${k}" placeholder="${SPLIT_FIELDS[k].ph}" oninput="editGroupField('${k}', this.value)"></div>`).join('');
+    const parts = keys.map(k => `<div${k === 'trichyeu' ? ' class="fieldwide"' : ''}><label class="fieldlabel">${SPLIT_FIELDS[k].label}</label><input class="input w100" data-fk="${k}" placeholder="${SPLIT_FIELDS[k].ph}" oninput="editGroupField('${k}', this.value)"></div>`);
+    const secrecy = `<div><label class="fieldlabel" title="Tự nhận từ dấu đóng, sửa nếu sai; ghi vào Excel danh mục">Độ mật</label><select class="select w100" id="splitSecrecy" onchange="setGroupSecrecy(this.value)"><option>Không mật</option><option>Mật</option><option>Tối mật</option><option>Tuyệt mật</option></select></div>`;
+    const ti = keys.indexOf('trichyeu');   // đặt Độ mật cùng hàng các trường ngắn, trước ô Trích yếu (full width)
+    if (ti >= 0) parts.splice(ti, 0, secrecy); else parts.push(secrecy);
+    $('splitFields').innerHTML = parts.join('');
   }
   const fields = g ? groupFields(g) : {};
   $('splitFields').querySelectorAll('input[data-fk]').forEach(inp => {
@@ -869,6 +874,8 @@ function renderSelected() {
   input.disabled = !g;
   renderSplitFields(g);
   $('btnExportOne').disabled = !g;
+  $('splitSecrecy').value = (g && (S.groupSecrecy[g.start_uid] || g.do_mat)) || 'Không mật';
+  $('splitSecrecy').disabled = !g;
   $('btnAutoName').classList.toggle('hidden', !(g && S.groupNames[g.start_uid] && g.auto_name));
   $('splitPageNo').textContent = gi >= 0 ? `Trang ${S.groups[gi].uids.indexOf(S.cur) + 1}/${S.groups[gi].uids.length}` : `Trang ${idx + 1}/${doc.pages.length}`;
   $('btnPrevPage').disabled = idx <= 0;
@@ -995,11 +1002,12 @@ async function applyStarts(starts) {
 function startsAfter(lists) {
   const starts = [];
   lists.forEach((uids, i) => {
-    const old = S.groups[i].start_uid, name = S.groupNames[old], fields = S.groupFields[old];
+    const old = S.groups[i].start_uid, name = S.groupNames[old], fields = S.groupFields[old], sec = S.groupSecrecy[old];
     if (uids[0] !== old) forgetGroup(old);
     if (!uids.length) return;
     if (name) S.groupNames[uids[0]] = name;
     if (fields) S.groupFields[uids[0]] = fields;
+    if (sec) S.groupSecrecy[uids[0]] = sec;
     starts.push(uids[0]);
   });
   return starts;
@@ -1048,6 +1056,10 @@ function groupFields(g) {
   const m = g.meta || {};
   return { loai: m.loai_van_ban || '', coquan: m.co_quan_viet_tat || '', so: (m.so_ky_hieu || '').replace(/\/.*$/, '').trim(), ngay: m.ngay_ban_hanh || '', trichyeu: m.trich_yeu || '' };
 }
+function setGroupSecrecy(value) {
+  const g = S.groups[S.selGroup];
+  if (g) S.groupSecrecy[g.start_uid] = value;   // chỉ ghi vào Excel, không ảnh hưởng tên file
+}
 function setGroupName(g, name) {
   g.name = name; S.groupNames[g.start_uid] = name;
   if (S.groups[S.selGroup] === g) { $('groupRename').value = name; $('btnAutoName').classList.toggle('hidden', !g.auto_name); }
@@ -1088,7 +1100,7 @@ async function rotatePages(deg) {
   const uids = selectedOrCurrent();
   if (!uids.length) return;
   // Xoay làm mất OCR của trang, giữ lại tên và thông tin đã nhận dạng trước đó
-  S.groups.forEach(g => { if (uids.includes(g.start_uid)) { S.groupFields[g.start_uid] = groupFields(g); S.groupNames[g.start_uid] = g.name; } });
+  S.groups.forEach(g => { if (uids.includes(g.start_uid)) { S.groupFields[g.start_uid] = groupFields(g); S.groupNames[g.start_uid] = g.name; if (g.do_mat && !S.groupSecrecy[g.start_uid]) S.groupSecrecy[g.start_uid] = g.do_mat; } });
   try {
     const th = await call('pages_rotate', S.splitDoc, uids, deg);
     th.forEach(t => { S.thumbs[S.splitDoc][t.uid] = t.src; S.pageImgs.delete(`${S.splitDoc}:${t.uid}:o`); S.pageImgs.delete(`${S.splitDoc}:${t.uid}:p`); });
@@ -1169,19 +1181,15 @@ async function mergeDocs() {
     toast(`Đã ghép ${ids.length} tài liệu thành ${d.page_count} trang - bấm “Xuất văn bản” để ghi ra file`);
   } catch (e) { fail(e); }
 }
-// Một dòng trong sổ danh mục Excel: số ký hiệu đầy đủ & cơ quan đầy đủ từ OCR, ngày/trích yếu theo bản đã sửa
-function registerInfo(g, pages) {
+// Một dòng trong sổ danh mục Excel. Số tờ (to_so) để backend tự tính theo cài đặt (số trang/tờ, đếm trang trắng)
+function registerInfo(g) {
   const f = groupFields(g), m = g.meta || {};
-  const idx = g.uids.map(u => pages.indexOf(u) + 1).filter(x => x > 0).sort((a, b) => a - b);
-  let toSo = idx.length ? String(idx[0]) : '';
-  if (idx.length > 1) toSo = (idx[idx.length - 1] - idx[0] + 1 === idx.length) ? `${idx[0]}-${idx[idx.length - 1]}` : idx.join(', ');
   return {
     so_ky_hieu: m.so_ky_hieu || f.so || '',
     ngay: f.ngay || m.ngay_ban_hanh || '',
     co_quan: m.co_quan || f.coquan || '',
     trich_yeu: f.trichyeu || m.trich_yeu || '',
-    to_so: toSo,
-    do_mat: g.do_mat || '',
+    do_mat: S.groupSecrecy[g.start_uid] || g.do_mat || '',
   };
 }
 function previewGroupExport(only) {
@@ -1212,7 +1220,7 @@ function previewGroupExport(only) {
     const fmt = $('groupFormat').value, cls = $('classifyBy').value;
     $('gxGo').disabled = true; $('gxGo').textContent = 'Đang xuất…';
     try {
-      const payload = groups.filter(g => picked.has(g)).map(g => ({ ...g, info: registerInfo(g, pages) }));
+      const payload = groups.filter(g => picked.has(g)).map(g => ({ ...g, info: registerInfo(g) }));
       const r = await call('export_groups', S.splitDoc, payload, fmt, cls, null);
       closeModal();
       toast(`Đã xuất ${r.outputs.length} văn bản${r.register ? ' + 1 danh mục Excel' : ''}`, [{ label: 'Mở thư mục', fn: () => call('open_path', r.folder) }]);

@@ -16,6 +16,8 @@ DEFAULTS = {
     "naming_rule": "{coquan}_{loai}_{so}_{ngay}_{trichyeu}",
     "slash_replacement": "-",          # chuỗi thay cho dấu / trong tên file
     "filename_ascii": True,            # tên file không dấu, trích yếu viết liền (VeViecBoNhiem)
+    "sheet_pages": 2,                  # số trang mỗi tờ (quét 2 mặt = 2) - cột Tờ số trong Excel
+    # Đếm cả trang trắng khi tính số tờ: theo cờ "remove_blank_pages" (bật bỏ trắng -> không đếm)
     "doc_type_map": list(metadata.DEFAULT_TYPE_MAP),     # bảng viết tắt loại văn bản (sửa trong Cài đặt)
     "agency_map": list(metadata.DEFAULT_AGENCY_MAP),     # bảng viết tắt cơ quan ban hành
     "overwrite": False,                # False: tự thêm (1), (2)... khi trùng tên
