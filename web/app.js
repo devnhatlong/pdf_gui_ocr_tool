@@ -1169,11 +1169,25 @@ async function mergeDocs() {
     toast(`Đã ghép ${ids.length} tài liệu thành ${d.page_count} trang - bấm “Xuất văn bản” để ghi ra file`);
   } catch (e) { fail(e); }
 }
+// Một dòng trong sổ danh mục Excel: số ký hiệu đầy đủ & cơ quan đầy đủ từ OCR, ngày/trích yếu theo bản đã sửa
+function registerInfo(g, pages) {
+  const f = groupFields(g), m = g.meta || {};
+  const idx = g.uids.map(u => pages.indexOf(u) + 1).filter(x => x > 0).sort((a, b) => a - b);
+  let toSo = idx.length ? String(idx[0]) : '';
+  if (idx.length > 1) toSo = (idx[idx.length - 1] - idx[0] + 1 === idx.length) ? `${idx[0]}-${idx[idx.length - 1]}` : idx.join(', ');
+  return {
+    so_ky_hieu: m.so_ky_hieu || f.so || '',
+    ngay: f.ngay || m.ngay_ban_hanh || '',
+    co_quan: m.co_quan || f.coquan || '',
+    trich_yeu: f.trichyeu || m.trich_yeu || '',
+    to_so: toSo,
+  };
+}
 function previewGroupExport(only) {
   const doc = S.docs[S.splitDoc];
   const groups = only || (S.groups.length ? S.groups : [{ name: doc.name.replace(/\.[^.]+$/, ''), uids: doc.pages.map(p => p.uid), type: '', agency: '' }]);
   const pages = doc.pages.map(p => p.uid), picked = new Set(groups);
-  openModal(`<h2>Xuất văn bản</h2><p class="sub">${groups.length > 1 ? 'Bỏ tích văn bản không cần xuất.' : 'File sẽ được tạo trong thư mục kết quả.'}</p>
+  openModal(`<h2>Xuất văn bản</h2><p class="sub">${groups.length > 1 ? 'Bỏ tích văn bản không cần xuất.' : 'File sẽ được tạo trong thư mục kết quả.'} Kèm theo tạo 1 file Excel danh mục văn bản.</p>
     <div class="grid cols2 mt"><div><label class="fieldlabel">Định dạng</label><select class="select w100" id="groupFormat"><option value="pdf">PDF</option><option value="searchable_pdf">PDF có lớp chữ (Searchable)</option><option value="docx">Word DOCX</option><option value="txt">TXT</option></select></div>
     <div><label class="fieldlabel">Thư mục con</label><select class="select w100" id="classifyBy"><option value="none">Không tạo</option><option value="type">Theo loại văn bản</option><option value="agency">Theo cơ quan ban hành</option></select></div></div>
     <div class="mutedbox" id="gxList" style="margin:13px 0;max-height:300px;overflow:auto"></div>
@@ -1197,9 +1211,10 @@ function previewGroupExport(only) {
     const fmt = $('groupFormat').value, cls = $('classifyBy').value;
     $('gxGo').disabled = true; $('gxGo').textContent = 'Đang xuất…';
     try {
-      const r = await call('export_groups', S.splitDoc, groups.filter(g => picked.has(g)), fmt, cls, null);
+      const payload = groups.filter(g => picked.has(g)).map(g => ({ ...g, info: registerInfo(g, pages) }));
+      const r = await call('export_groups', S.splitDoc, payload, fmt, cls, null);
       closeModal();
-      toast(`Đã xuất ${r.outputs.length} file`, [{ label: 'Mở thư mục', fn: () => call('open_path', r.folder) }]);
+      toast(`Đã xuất ${r.outputs.length} văn bản${r.register ? ' + 1 danh mục Excel' : ''}`, [{ label: 'Mở thư mục', fn: () => call('open_path', r.folder) }]);
     } catch (e) { closeModal(); fail(e); }
   };
 }

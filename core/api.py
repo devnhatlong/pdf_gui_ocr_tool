@@ -718,10 +718,44 @@ class Api:
             path = unique_path(os.path.join(target_dir, name + ext), self._settings.get("overwrite"))
             exporters.export(fmt, self._export_pages(doc, set(g["uids"])), path, doc)
             outputs.append(path)
+        register = self._export_register(doc, groups, folder)
         self._history.add("split", doc.name, doc.path, len(doc.pages), detail=f"Xuất {len(outputs)} văn bản",
-                          outputs=outputs, doc_count=len(outputs),
+                          outputs=outputs + ([register] if register else []), doc_count=len(outputs),
                           text="\n\n".join(doc.page_text(p.uid) for p in doc.pages))
-        return {"folder": folder, "outputs": outputs}
+        return {"folder": folder, "outputs": outputs, "register": register}
+
+    def _export_register(self, doc, groups, folder):
+        """Ghi sổ danh mục văn bản (Excel) cho các nhóm đã xuất."""
+        pos = {p.uid: i + 1 for i, p in enumerate(doc.pages)}
+        rows = []
+        for g in groups:
+            info = g.get("info") or {}
+            meta = g.get("meta") or {}
+            to_so = info.get("to_so")
+            if not to_so:   # không có từ giao diện -> tính từ vị trí trang trong tài liệu
+                nums = sorted(pos[u] for u in g.get("uids", []) if u in pos)
+                if not nums:
+                    to_so = ""
+                elif len(nums) == 1:
+                    to_so = str(nums[0])
+                elif nums[-1] - nums[0] + 1 == len(nums):
+                    to_so = f"{nums[0]}-{nums[-1]}"
+                else:
+                    to_so = ", ".join(map(str, nums))
+            rows.append({
+                "so": info.get("so_ky_hieu") or meta.get("so_ky_hieu", ""),
+                "ngay": info.get("ngay") or meta.get("ngay_ban_hanh", ""),
+                "coquan": info.get("co_quan") or meta.get("co_quan") or meta.get("co_quan_viet_tat", ""),
+                "trichyeu": info.get("trich_yeu") or meta.get("trich_yeu", ""),
+                "to_so": to_so,
+                "do_mat": info.get("do_mat") or "Không mật",
+                "ghi_chu": info.get("ghi_chu", ""),
+            })
+        try:
+            path = unique_path(os.path.join(folder, "Danh muc van ban.xlsx"), self._settings.get("overwrite"))
+            return exporters.export_register(rows, path)
+        except Exception:
+            return None
 
     @_safe
     def save_document(self, doc_id, path=None):
