@@ -224,8 +224,8 @@
                   <datalist id="docTypeList"></datalist>
                   <label class="fieldlabel mt">Cơ quan ban hành</label><input class="input w100" id="fCoquan"
                     placeholder="VD: CAT, UBND…" oninput="updateFilename()">
-                  <label class="fieldlabel mt">Số ký hiệu</label><input class="input w100" id="fSo"
-                    placeholder="VD: 123/BC-CAT" oninput="updateFilename()">
+                  <label class="fieldlabel mt">Số văn bản</label><input class="input w100" id="fSo"
+                    placeholder="VD: 123" oninput="updateFilename()">
                   <label class="fieldlabel mt">Ngày ban hành</label><input class="input w100" id="fNgay"
                     placeholder="dd/mm/yyyy" oninput="updateFilename()">
                   <label class="fieldlabel mt">Trích yếu</label><textarea class="input w100" id="fTrich" rows="2"
@@ -291,11 +291,10 @@
                     onclick="splitZoom(1)" title="Phóng to"><i data-ic="plus"></i></button>
                 </div>
                 <div class="row">
-                  <button class="btn small" id="btnSplitRegion" onclick="toggleSplitRegion()"
-                    title="Kéo chọn một vùng trên ảnh để OCR lại rồi copy"><i
-                      data-ic="square-dashed-mouse-pointer"></i> <span class="lbl">Vùng OCR</span></button><button
-                    class="btn small" id="btnSplitText" onclick="toggleSplitText()"
-                    title="Xem văn bản dạng chữ để copy"><i data-ic="file-text"></i> <span
+                  <button class="btn small" id="btnSplitBoxes" onclick="toggleSplitBoxes()"
+                    title="Hiện khung bao quanh từng dòng chữ đã nhận dạng"><i data-ic="frame"></i> <span
+                      class="lbl">Vùng OCR</span></button><button class="btn small" id="btnSplitText"
+                    onclick="toggleSplitText()" title="Xem văn bản dạng chữ để copy"><i data-ic="file-text"></i> <span
                       class="lbl">Văn bản</span></button>
                 </div>
                 <div class="row">
@@ -312,8 +311,9 @@
                 </div>
               </div>
               <div class="paperview" id="splitPaper">
-                <div class="splitwrap hidden" id="splitWrap"><img id="splitPageImg" alt="Trang đang xem"><div
-                    class="regionsel" id="splitRegionSel"></div></div>
+                <div class="splitwrap hidden" id="splitWrap"><img id="splitPageImg" alt="Trang đang xem">
+                  <div class="boxlayer" id="splitBoxLayer"></div>
+                </div>
                 <div class="splittext hidden" id="splitText"></div>
                 <div class="empty" id="splitEmpty">Chọn PDF hoặc ảnh để bắt đầu<br><br><button class="btn small"
                     onclick="addDocuments('split')"><i data-ic="plus"></i> Chọn tài liệu</button></div>

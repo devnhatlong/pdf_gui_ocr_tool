@@ -232,6 +232,12 @@ class Api:
         out, errors = [], []
         for p in self._expand(paths):
             try:
+                key = os.path.normcase(os.path.abspath(p))
+                existing = next((d for d in self._docs.values()
+                                 if d.path and os.path.normcase(os.path.abspath(d.path)) == key), None)
+                if existing is not None:    # đã mở file này rồi -> dùng lại, không tạo trùng
+                    out.append(existing.summary())
+                    continue
                 doc = Document(p, self._workspace)
                 self._docs[doc.id] = doc
                 self._load_draft(doc)

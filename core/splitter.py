@@ -189,7 +189,8 @@ def build_groups(doc, starts, settings, names=None):
         text = doc.page_text(g["uids"][0])
         meta = metadata.extract_metadata(text, settings.get("doc_type_map"), settings.get("agency_map"))
         g["meta"] = meta
-        auto = metadata.build_filename(metadata.meta_to_fields(meta), rule, ext="",
+        g["fields"] = metadata.meta_to_fields(meta)   # loai/coquan/so(số)/ngay/trichyeu để hiển thị & sửa
+        auto = metadata.build_filename(g["fields"], rule, ext="",
                                        slash=settings.get("slash_replacement", "-"),
                                        ascii_name=settings.get("filename_ascii", False))
         g["auto_name"] = auto or f"Van_ban_{i + 1:02d}"

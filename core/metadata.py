@@ -526,16 +526,20 @@ def _joined(text):
     return "".join(w[:1].upper() + w[1:] for w in re.findall(r"[A-Za-z0-9/\-]+", text))
 
 
+def so_number(value):
+    """Số văn bản = chỉ phần số trước dấu / (1794/QĐ-XPHC -> 1794, 1831/PV01-CNTT -> 1831)."""
+    m = re.match(r"\s*(\d+[A-Za-zĐđ]?)", value or "")
+    return m.group(1) if m else (value or "").strip()
+
+
 def build_filename(fields, rule="{so}_{ngay}_{trichyeu}", ext=".pdf", slash="-", ascii_name=False):
     """fields: loai, coquan, so, ngay (dd/mm/yyyy), trichyeu. Phần rỗng được bỏ cùng dấu nối.
     slash: chuỗi người dùng chọn thay cho dấu / (không dùng được trong tên file): 123/BC-CAT -> 123-BC-CAT.
     ascii_name: tên file không dấu, trích yếu viết liền (VeViecBoNhiem)."""
-    so_raw = (fields.get("so") or "").strip()
-    so_match = re.match(r"\s*(\d+[A-Za-zĐđ]?)", so_raw)   # {so} chỉ lấy số thứ tự trước dấu / (1794/QĐ-XPHC -> 1794)
     values = {
         "loai": (fields.get("loai") or "").strip(),
         "coquan": (fields.get("coquan") or "").strip(),
-        "so": so_match.group(1) if so_match else so_raw,
+        "so": so_number(fields.get("so")),   # {so} chỉ lấy số trước dấu /
         "ngay": (fields.get("ngay") or "").strip(),
         "trichyeu": _summary_part(re.sub(r"\s+", " ", fields.get("trichyeu") or "").strip()),
     }
@@ -556,5 +560,5 @@ def build_filename(fields, rule="{so}_{ngay}_{trichyeu}", ext=".pdf", slash="-",
 
 def meta_to_fields(meta):
     return {"loai": meta.get("loai_van_ban", ""), "coquan": meta.get("co_quan_viet_tat", ""),
-            "so": meta.get("so_ky_hieu", ""), "ngay": meta.get("ngay_ban_hanh", ""),
+            "so": so_number(meta.get("so_ky_hieu", "")), "ngay": meta.get("ngay_ban_hanh", ""),
             "trichyeu": meta.get("trich_yeu", "")}

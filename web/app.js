@@ -106,7 +106,6 @@ async function init() {
   document.querySelectorAll('#settingsTabs button').forEach(b => b.onclick = () => settingsTab(b.dataset.settab));
   bindEditor();
   bindViewer();
-  bindSplitViewer();
   bindDrop();
   bindKeys();
   window.addEventListener('resize', debounce(() => applyZoom(), 150));
@@ -889,41 +888,69 @@ function renderSelected() {
   $('splitWhy').textContent = why;
   $('splitWhy').title = why;
 }
-async function splitImage(docId, uid) {
-  const key = docId + ':' + uid;
+// original=true: ảnh sẽ xuất (gốc). false: ảnh đã xử lý cho OCR (khớp khung tọa độ)
+async function splitImage(docId, uid, original) {
+  const key = `${docId}:${uid}:${original ? 'o' : 'p'}`;
   if (!S.pageImgs.has(key)) {
-    const r = await call('page_image', docId, uid, 2000, true);
+    const r = await call('page_image', docId, uid, 2000, !!original);
     S.pageImgs.set(key, r.src);
     if (S.pageImgs.size > 30) S.pageImgs.delete(S.pageImgs.keys().next().value);
   }
   return S.pageImgs.get(key);
 }
 async function showSplitPage() {
-  const docId = S.splitDoc, uid = S.cur, key = docId + ':' + uid, img = $('splitPageImg');
+  const docId = S.splitDoc, uid = S.cur, img = $('splitPageImg');
+  if (!docId || !uid) return;
   $('splitEmpty').classList.add('hidden');
   ['splitNameBar', 'splitViewBar'].forEach(id => $(id).classList.remove('hidden'));
   applySplitView();
-  if (S.viewKey === key) { if (S.splitTextMode) loadSplitText(); return; }
+  const original = !S.splitBoxes;   // bật khung thì xem ảnh OCR để khung khớp từng dòng
+  const key = `${docId}:${uid}:${original ? 'o' : 'p'}`;
+  if (S.splitTextMode) loadSplitText();
+  if (S.viewKey === key) { if (S.splitBoxes) drawSplitBoxes(); return; }
   S.viewKey = key;
   img.src = S.pageImgs.get(key) || (S.thumbs[docId] || {})[uid] || '';
   applySplitZoom();
   $('splitPaper').scrollTop = 0;
-  if (S.splitTextMode) loadSplitText();
+  $('splitBoxLayer').innerHTML = '';
   try {
-    const src = await splitImage(docId, uid);
-    if (S.viewKey === key) img.src = src;
+    const src = await splitImage(docId, uid, original);
+    if (S.viewKey === key) { img.src = src; if (S.splitBoxes) drawSplitBoxes(); }
     const pages = S.docs[docId].pages, next = pages[pages.findIndex(p => p.uid === uid) + 1];
-    if (next) splitImage(docId, next.uid).catch(() => { });
+    if (next) splitImage(docId, next.uid, original).catch(() => { });
   } catch (e) { fail(e); }
 }
-// Xem ảnh (có chọn vùng OCR) hoặc xem văn bản dạng chữ để copy
+// Xem ảnh (bo khung chữ / chọn vùng OCR lại) hoặc xem văn bản dạng chữ để copy
 function applySplitView() {
-  $('splitWrap').classList.toggle('hidden', !!S.splitTextMode);
-  $('splitText').classList.toggle('hidden', !S.splitTextMode);
-  $('splitWrap').classList.toggle('regionmode', !!S.splitRegion && !S.splitTextMode);
-  $('btnSplitText').classList.toggle('on', !!S.splitTextMode);
-  $('btnSplitRegion').classList.toggle('on', !!S.splitRegion && !S.splitTextMode);
-  $('btnSplitRegion').disabled = !!S.splitTextMode;
+  const textMode = !!S.splitTextMode;
+  $('splitWrap').classList.toggle('hidden', textMode);
+  $('splitText').classList.toggle('hidden', !textMode);
+  $('splitBoxLayer').classList.toggle('show', !!S.splitBoxes && !textMode);
+  $('btnSplitText').classList.toggle('on', textMode);
+  $('btnSplitBoxes').classList.toggle('on', !!S.splitBoxes && !textMode);
+  $('btnSplitBoxes').disabled = textMode;
+}
+function toggleSplitBoxes() {
+  if (S.splitTextMode) return;
+  S.splitBoxes = !S.splitBoxes;
+  S.viewKey = null;   // đổi giữa ảnh gốc / ảnh OCR -> tải lại
+  applySplitView();
+  showSplitPage();
+}
+async function drawSplitBoxes() {
+  const layer = $('splitBoxLayer'), docId = S.splitDoc, uid = S.cur;
+  try {
+    const r = await call('ocr_result', docId, uid);
+    if (S.cur !== uid || !S.splitBoxes) return;
+    if (!r || !r.size || !r.size[0]) {
+      layer.innerHTML = '';
+      toast('Trang này chưa được nhận dạng. Bấm “Phân tích tài liệu” trước.', [], 3500, 'info');
+      return;
+    }
+    const [W, H] = r.size, thr = r.threshold || 0.8;
+    const pos = b => `left:${b[0] / W * 100}%;top:${b[1] / H * 100}%;width:${(b[2] - b[0]) / W * 100}%;height:${(b[3] - b[1]) / H * 100}%`;
+    layer.innerHTML = r.lines.map(ln => `<div class="obox ${ln.score != null && ln.score < thr ? 'low' : ''}" style="${pos(ln.box)}" title="${esc(ln.text)}${ln.score != null ? ' · ' + Math.round(ln.score * 100) + '%' : ''}"></div>`).join('');
+  } catch (e) { fail(e); }
 }
 function applySplitZoom() {
   if ($('splitWrap')) $('splitWrap').style.width = Math.round((S.splitZoom || 1) * 100) + '%';
@@ -935,14 +962,9 @@ function splitZoom(d) {
 }
 function toggleSplitText() {
   S.splitTextMode = !S.splitTextMode;
-  if (S.splitTextMode) { S.splitRegion = false; loadSplitText(); }
+  if (S.splitTextMode) loadSplitText();
+  else { S.viewKey = null; showSplitPage(); }
   applySplitView();
-}
-function toggleSplitRegion() {
-  if (S.splitTextMode) return;
-  S.splitRegion = !S.splitRegion;
-  applySplitView();
-  if (S.splitRegion) toast('Kéo chuột trên ảnh để chọn vùng cần OCR lại');
 }
 async function loadSplitText() {
   const docId = S.splitDoc, uid = S.cur;
@@ -952,7 +974,7 @@ async function loadSplitText() {
     const r = await call('ocr_result', docId, uid);
     if (S.cur !== uid || !S.splitTextMode) return;
     if (!r) {
-      $('splitTextBody').innerHTML = '<div class="empty">Trang này chưa được nhận dạng. Bấm “Phân tích tài liệu”, hoặc dùng “Vùng OCR” để đọc một vùng.</div>';
+      $('splitTextBody').innerHTML = '<div class="empty">Trang này chưa được nhận dạng. Bấm “Phân tích tài liệu” trước.</div>';
       $('splitTextInfo').textContent = 'Chưa có OCR';
       return;
     }
@@ -962,38 +984,6 @@ async function loadSplitText() {
   } catch (e) { fail(e); }
 }
 function copySplitText() { const b = $('splitTextBody'); copyText(b ? b.textContent : ''); }
-function bindSplitViewer() {
-  let start = null;
-  const wrap = () => $('splitWrap');
-  const rel = e => { const r = wrap().getBoundingClientRect(); return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))]; };
-  $('splitPaper').addEventListener('mousedown', e => {
-    if (!S.splitRegion || S.splitTextMode || !wrap() || wrap().classList.contains('hidden') || !wrap().contains(e.target)) return;
-    start = rel(e); e.preventDefault();
-  });
-  window.addEventListener('mousemove', e => {
-    if (!start) return;
-    const p = rel(e), s = $('splitRegionSel');
-    s.style.display = 'block';
-    s.style.left = Math.min(p[0], start[0]) * 100 + '%'; s.style.top = Math.min(p[1], start[1]) * 100 + '%';
-    s.style.width = Math.abs(p[0] - start[0]) * 100 + '%'; s.style.height = Math.abs(p[1] - start[1]) * 100 + '%';
-  });
-  window.addEventListener('mouseup', async e => {
-    if (!start) return;
-    const p = rel(e), box = [Math.min(p[0], start[0]), Math.min(p[1], start[1]), Math.max(p[0], start[0]), Math.max(p[1], start[1])];
-    start = null;
-    $('splitRegionSel').style.display = 'none';
-    if (box[2] - box[0] < 0.01 || box[3] - box[1] < 0.005) return;
-    $('footerInfo').textContent = 'Đang OCR vùng chọn…';
-    try { const r = await call('ocr_region', S.splitDoc, S.cur, box); showRegionResultSplit(r); }
-    catch (err) { fail(err); }
-  });
-}
-function showRegionResultSplit(r) {
-  openModal(`<h2>Kết quả OCR vùng chọn</h2><p class="sub small">${esc(r.engine || '')}</p>
-    <textarea class="input w100" id="regText" rows="6">${esc(r.text)}</textarea>
-    <div class="row between mt"><button class="btn" onclick="closeModal()">Đóng</button><button class="btn primary" id="regCopy">${ic('copy')} Copy</button></div>`);
-  $('regCopy').onclick = () => copyText($('regText').value);
-}
 function startsList() { return S.groups.map(g => g.start_uid); }
 async function applyStarts(starts) {
   const pages = S.docs[S.splitDoc].pages.map(p => p.uid);
@@ -1053,8 +1043,10 @@ async function isolatePages(picked = selectedOrCurrent()) {
   } catch (e) { fail(e); }
 }
 function groupFields(g) {
+  if (S.groupFields[g.start_uid]) return S.groupFields[g.start_uid];
+  if (g.fields) return g.fields;   // từ backend: so = chỉ số văn bản
   const m = g.meta || {};
-  return S.groupFields[g.start_uid] || { loai: m.loai_van_ban || '', coquan: m.co_quan_viet_tat || '', so: m.so_ky_hieu || '', ngay: m.ngay_ban_hanh || '', trichyeu: m.trich_yeu || '' };
+  return { loai: m.loai_van_ban || '', coquan: m.co_quan_viet_tat || '', so: (m.so_ky_hieu || '').replace(/\/.*$/, '').trim(), ngay: m.ngay_ban_hanh || '', trichyeu: m.trich_yeu || '' };
 }
 function setGroupName(g, name) {
   g.name = name; S.groupNames[g.start_uid] = name;
@@ -1099,7 +1091,7 @@ async function rotatePages(deg) {
   S.groups.forEach(g => { if (uids.includes(g.start_uid)) { S.groupFields[g.start_uid] = groupFields(g); S.groupNames[g.start_uid] = g.name; } });
   try {
     const th = await call('pages_rotate', S.splitDoc, uids, deg);
-    th.forEach(t => { S.thumbs[S.splitDoc][t.uid] = t.src; S.pageImgs.delete(S.splitDoc + ':' + t.uid); });
+    th.forEach(t => { S.thumbs[S.splitDoc][t.uid] = t.src; S.pageImgs.delete(`${S.splitDoc}:${t.uid}:o`); S.pageImgs.delete(`${S.splitDoc}:${t.uid}:p`); });
     S.viewKey = null; renderSplit();
   } catch (e) { fail(e); }
 }

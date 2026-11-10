@@ -85,6 +85,11 @@ class EndToEndTests(unittest.TestCase):
         name = metadata.build_filename(fields, "{so}-{loai}-{coquan}", ext="")
         self.assertEqual(name, "53-BC-CNTT")
 
+    def test_so_field_is_number_only(self):
+        for raw, num in (("53/BC-CNTT", "53"), ("1831/PV01-CNTT", "1831"), ("45/2026/NĐ-CP", "45"), ("618/QĐ-CAT", "618")):
+            self.assertEqual(metadata.so_number(raw), num)
+        self.assertEqual(metadata.meta_to_fields(metadata.extract_metadata(HDR_DOI))["so"], "53")
+
     def test_empty_maps_disable_abbreviation(self):
         # Bảng rỗng: cơ quan dùng chữ cái đầu, loại giữ mã thô
         meta = metadata.extract_metadata(HDR_PHONG, type_map=[], agency_map=[])
