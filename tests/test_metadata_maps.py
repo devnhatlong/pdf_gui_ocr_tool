@@ -121,5 +121,38 @@ class EndToEndTests(unittest.TestCase):
         self.assertEqual(meta["co_quan_viet_tat"], "PTM")
 
 
+class QpplSummaryTests(unittest.TestCase):
+    """Văn bản QPPL: trích yếu = tên loại (đứng giữa) + tên gọi ngay bên dưới."""
+    def summary(self, text):
+        return metadata._extractor.extract_metadata_from_ocr(text)["trich_yeu"]
+
+    def test_thong_tu_block(self):
+        text = ("BỘ CÔNG AN\nSố:  33/2022/TT-BCA\nHà Nội, ngày 30 tháng 9 năm 2022\n"
+                "THÔNG TƯ\nQuy định chế độ nghỉ dưỡng hằng năm trong Công an nhân dân\n"
+                "Căn cứ Nghị định số 01/2018/NĐ-CP\n")
+        self.assertEqual(self.summary(text),
+                         "Thông tư Quy định chế độ nghỉ dưỡng hằng năm trong Công an nhân dân")
+
+    def test_nghi_dinh_block(self):
+        text = ("CHÍNH PHỦ\nSố: 01/2018/NĐ-CP\nNGHỊ ĐỊNH\n"
+                "Quy định chức năng, nhiệm vụ, quyền hạn\nCăn cứ Luật Tổ chức Chính phủ\n")
+        self.assertEqual(self.summary(text), "Nghị định Quy định chức năng, nhiệm vụ, quyền hạn")
+
+    def test_does_not_override_vv_summary(self):
+        text = ("CÔNG AN TỈNH\nSố: 10/CV-PV01\nV/v đề nghị phối hợp kiểm tra\nKính gửi: ...\n")
+        self.assertEqual(self.summary(text), "V/v đề nghị phối hợp kiểm tra")
+
+    def test_centered_block_keeps_type_word(self):
+        # Báo cáo / Thông báo / Kết luận / Kế hoạch: tên loại đứng riêng + tên gọi bên dưới
+        cases = {
+            "BÁO CÁO\nKết quả công tác quý I\nI. ĐẶC ĐIỂM": "Báo cáo Kết quả công tác quý I",
+            "THÔNG BÁO\nKết luận của Giám đốc tại cuộc họp\nNgày...": "Thông báo Kết luận của Giám đốc tại cuộc họp",
+            "KẾT LUẬN\nThanh tra việc chấp hành quy định\nCăn cứ...": "Kết luận Thanh tra việc chấp hành quy định",
+            "KẾ HOẠCH\nTriển khai cao điểm trấn áp tội phạm\nI. MỤC ĐÍCH": "Kế hoạch Triển khai cao điểm trấn áp tội phạm",
+        }
+        for body, want in cases.items():
+            self.assertEqual(self.summary("CÔNG AN TỈNH\nSố: 1/X-PV01\n" + body), want, body)
+
+
 if __name__ == "__main__":
     unittest.main()

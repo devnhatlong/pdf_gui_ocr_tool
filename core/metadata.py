@@ -305,14 +305,64 @@ class _Extractor:
                     trich_yeu_lines.append(line)
                 
                 if trich_yeu_lines:
-                    trich_yeu = " ".join(trich_yeu_lines)
-                    # Loại bỏ khoảng trắng thừa
-                    trich_yeu = re.sub(r"\s+", " ", trich_yeu).strip()
+                    trich_yeu = re.sub(r"\s+", " ", " ".join(trich_yeu_lines)).strip()
+                    # Ghép tên loại vào đầu (VD: "BÁO CÁO" + "Kết quả..." -> "Báo cáo Kết quả...";
+                    # "THÔNG BÁO", "KẾT LUẬN", "KẾ HOẠCH"... cùng cách). "Kính gửi" không phải tên loại.
+                    kw_label = title_keywords_original[matched_keyword_idx] if matched_keyword_idx is not None else ""
+                    if kw_label and kw_label != "kính gửi":
+                        label = kw_label[:1].upper() + kw_label[1:]
+                        if not self.remove_accents(trich_yeu).startswith(self.remove_accents(label)):
+                            trich_yeu = label + " " + trich_yeu
                     # Giới hạn độ dài (tối đa 250 ký tự)
                     if len(trich_yeu) > 250:
                         trich_yeu = trich_yeu[:247] + "..."
                     if trich_yeu and len(trich_yeu) >= 5:
                         result["trich_yeu"] = trich_yeu
+
+        # === TRÍCH YẾU (văn bản QPPL: tên loại in hoa đứng giữa + tên gọi ngay bên dưới) ===
+        #   THÔNG TƯ
+        #   Quy định chế độ nghỉ dưỡng hằng năm trong Công an nhân dân
+        # -> "Thông tư Quy định chế độ nghỉ dưỡng hằng năm trong Công an nhân dân"
+        if not result["trich_yeu"]:
+            qppl_types = {
+                "thong tu lien tich": "Thông tư liên tịch",
+                "thong tu": "Thông tư",
+                "nghi dinh": "Nghị định",
+                "nghi quyet": "Nghị quyết",
+                "quyet dinh": "Quyết định",
+                "chi thi": "Chỉ thị",
+                "phap lenh": "Pháp lệnh",
+                "luat": "Luật",
+            }
+            # Các dòng mở đầu phần nội dung / thông tin khác -> dừng lấy tên gọi
+            stop_prefixes = ("can cu", "kinh gui", "so ", "so:", "ngay", "dieu ", "chuong ",
+                             "cong hoa", "doc lap", "ha noi", "theo de nghi", "xet de nghi")
+            for idx, line in enumerate(original_lines):
+                key = re.sub(r"\s+", " ", re.sub(r"[^a-z ]", "", self.remove_accents(line.strip()))).strip()
+                if key not in qppl_types:
+                    continue
+                title_lines = []
+                for j in range(idx + 1, min(idx + 4, len(original_lines))):
+                    nxt = original_lines[j].strip()
+                    if not nxt:
+                        if title_lines:
+                            break
+                        continue
+                    nxt_plain = self.remove_accents(nxt)
+                    if nxt_plain.startswith(stop_prefixes):
+                        break
+                    # dòng in hoa toàn bộ (quốc hiệu, tiêu đề khác) không phải tên gọi văn bản
+                    letters = [c for c in nxt if c.isalpha()]
+                    if letters and all(c.isupper() for c in letters):
+                        break
+                    title_lines.append(nxt)
+                if title_lines:
+                    trich_yeu = re.sub(r"\s+", " ", qppl_types[key] + " " + " ".join(title_lines)).strip()
+                    if len(trich_yeu) > 250:
+                        trich_yeu = trich_yeu[:247] + "..."
+                    if len(trich_yeu) >= 5:
+                        result["trich_yeu"] = trich_yeu
+                break
 
         return result
 
