@@ -496,6 +496,29 @@ def _abbr_for_agency(name, pairs):
     return "".join(w[0] for w in words[:4]).upper()
 
 
+def detect_secrecy(ocr):
+    """Độ mật từ dấu đóng ở đầu trang (dưới dòng Số). ocr: dict {lines, size} hoặc None.
+    Trả về 'Tuyệt mật' | 'Tối mật' | 'Mật' | 'Không mật'. Dấu "giảm xuống/tăng lên <mức>"
+    cho ra <mức> (vd "Giảm xuống Tối mật" -> Tối mật). "Giải mật" -> Không mật."""
+    if not ocr or not ocr.get("lines"):
+        return "Không mật"
+    h = (ocr.get("size") or [0, 0])[1] or 1
+    top = []
+    for ln in ocr["lines"]:
+        y = (ln["box"][1] + ln["box"][3]) / 2 / h
+        if y < 0.38:   # chỉ vùng đầu trang, tránh nhầm "mật" trong nội dung
+            top.append(re.sub(r"[^a-z]", "", remove_accents(ln["text"]).lower()))
+    joined = " ".join(top)
+    if "tuyetmat" in joined:
+        return "Tuyệt mật"
+    if "toimat" in joined:
+        return "Tối mật"
+    # "MẬT" là dấu đóng khi đứng riêng (một dòng ngắn), hoặc "giảm xuống/tăng lên mật"
+    if any(t == "mat" for t in top) or "xuongmat" in joined or "lenmat" in joined:
+        return "Mật"
+    return "Không mật"
+
+
 def extract_metadata(text, type_map=None, agency_map=None):
     """Thông tin văn bản từ văn bản OCR (theo thứ tự đọc). type_map / agency_map: bảng viết tắt từ Cài đặt."""
     meta = _extractor.extract_metadata_from_ocr(text)

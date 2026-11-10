@@ -1181,6 +1181,7 @@ function registerInfo(g, pages) {
     co_quan: m.co_quan || f.coquan || '',
     trich_yeu: f.trichyeu || m.trich_yeu || '',
     to_so: toSo,
+    do_mat: g.do_mat || '',
   };
 }
 function previewGroupExport(only) {

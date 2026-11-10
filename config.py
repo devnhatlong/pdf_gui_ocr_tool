@@ -56,7 +56,7 @@ def vietocr_dir():
 # ỨNG DỤNG
 # ==================================================
 APP_NAME = "OfflineOCR Studio"
-APP_VERSION = "2.3.2"
+APP_VERSION = "2.4.0"
 AUTHOR_LINES = [
     ("Phát triển bởi", "Nguyễn Nhật Long"),
     ("Đơn vị", "Đội CNTT - Phòng Tham mưu"),

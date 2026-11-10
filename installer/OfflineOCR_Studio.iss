@@ -9,7 +9,7 @@
   #define Edition "Standard"
 #endif
 #define AppName "OfflineOCR Studio"
-#define AppVersion "2.3.2"
+#define AppVersion "2.4.0"
 #define AppPublisher "Nguyễn Nhật Long - Đội CNTT, Phòng Tham mưu"
 #define AppExe "OfflineOCR_Studio.exe"
 #define Root ".."

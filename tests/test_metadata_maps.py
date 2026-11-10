@@ -73,6 +73,30 @@ class DetectAgencyTests(unittest.TestCase):
         self.assertEqual(metadata.detect_agency(text, [])[1], "BCHQ")
 
 
+class SecrecyTests(unittest.TestCase):
+    def ocr(self, lines):
+        return {"size": [1000, 1000], "lines": [{"text": t, "box": [100, int(y * 1000) - 8, 300, int(y * 1000) + 8]} for t, y in lines]}
+
+    def test_base_levels_and_ocr_variants(self):
+        for text, label in (("TUYỆT MẬT", "Tuyệt mật"), ("TUYẾT MẬT", "Tuyệt mật"), ("TỐI MẬT", "Tối mật"),
+                            ("MẬT", "Mật"), ("MẶT", "Mật"), ("MẬT]", "Mật")):
+            self.assertEqual(metadata.detect_secrecy(self.ocr([(text, 0.2)])), label, text)
+
+    def test_no_stamp(self):
+        self.assertEqual(metadata.detect_secrecy(self.ocr([("QUYẾT ĐỊNH", 0.2)])), "Không mật")
+        self.assertEqual(metadata.detect_secrecy(None), "Không mật")
+
+    def test_mat_in_content_not_detected(self):
+        self.assertEqual(metadata.detect_secrecy(self.ocr([("mật độ xây dựng 40%", 0.6)])), "Không mật")
+        self.assertEqual(metadata.detect_secrecy(self.ocr([("Về việc bảo vệ bí mật", 0.2)])), "Không mật")
+
+    def test_adjustment_and_declassify(self):
+        self.assertEqual(metadata.detect_secrecy(self.ocr([("GIẢM XUỐNG TỐI MẬT", 0.2)])), "Tối mật")
+        self.assertEqual(metadata.detect_secrecy(self.ocr([("TĂNG LÊN TUYỆT MẬT", 0.2)])), "Tuyệt mật")
+        self.assertEqual(metadata.detect_secrecy(self.ocr([("GIẢM XUỐNG MẬT", 0.2)])), "Mật")
+        self.assertEqual(metadata.detect_secrecy(self.ocr([("GIẢI MẬT", 0.2)])), "Không mật")
+
+
 class EndToEndTests(unittest.TestCase):
     def test_phong_tham_muu_document(self):
         meta = metadata.extract_metadata(HDR_PHONG)

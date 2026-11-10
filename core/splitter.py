@@ -189,6 +189,7 @@ def build_groups(doc, starts, settings, names=None):
         text = doc.page_text(g["uids"][0])
         meta = metadata.extract_metadata(text, settings.get("doc_type_map"), settings.get("agency_map"))
         g["meta"] = meta
+        g["do_mat"] = metadata.detect_secrecy(doc.ocr.get(g["uids"][0]))   # độ mật từ dấu đóng đầu trang
         g["fields"] = metadata.meta_to_fields(meta)   # loai/coquan/so(số)/ngay/trichyeu để hiển thị & sửa
         auto = metadata.build_filename(g["fields"], rule, ext="",
                                        slash=settings.get("slash_replacement", "-"),

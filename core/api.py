@@ -748,7 +748,7 @@ class Api:
                 "coquan": info.get("co_quan") or meta.get("co_quan") or meta.get("co_quan_viet_tat", ""),
                 "trichyeu": info.get("trich_yeu") or meta.get("trich_yeu", ""),
                 "to_so": to_so,
-                "do_mat": info.get("do_mat") or "Không mật",
+                "do_mat": info.get("do_mat") or g.get("do_mat") or "Không mật",
                 "ghi_chu": info.get("ghi_chu", ""),
             })
         try:
