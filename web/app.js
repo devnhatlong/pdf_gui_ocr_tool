@@ -106,6 +106,7 @@ async function init() {
   document.querySelectorAll('#settingsTabs button').forEach(b => b.onclick = () => settingsTab(b.dataset.settab));
   bindEditor();
   bindViewer();
+  bindSplitViewer();
   bindDrop();
   bindKeys();
   window.addEventListener('resize', debounce(() => applyZoom(), 150));
@@ -900,11 +901,14 @@ async function splitImage(docId, uid) {
 async function showSplitPage() {
   const docId = S.splitDoc, uid = S.cur, key = docId + ':' + uid, img = $('splitPageImg');
   $('splitEmpty').classList.add('hidden');
-  ['splitPageImg', 'splitNameBar', 'splitViewBar'].forEach(id => $(id).classList.remove('hidden'));
-  if (S.viewKey === key) return;
+  ['splitNameBar', 'splitViewBar'].forEach(id => $(id).classList.remove('hidden'));
+  applySplitView();
+  if (S.viewKey === key) { if (S.splitTextMode) loadSplitText(); return; }
   S.viewKey = key;
   img.src = S.pageImgs.get(key) || (S.thumbs[docId] || {})[uid] || '';
+  applySplitZoom();
   $('splitPaper').scrollTop = 0;
+  if (S.splitTextMode) loadSplitText();
   try {
     const src = await splitImage(docId, uid);
     if (S.viewKey === key) img.src = src;
@@ -912,10 +916,83 @@ async function showSplitPage() {
     if (next) splitImage(docId, next.uid).catch(() => { });
   } catch (e) { fail(e); }
 }
+// Xem ảnh (có chọn vùng OCR) hoặc xem văn bản dạng chữ để copy
+function applySplitView() {
+  $('splitWrap').classList.toggle('hidden', !!S.splitTextMode);
+  $('splitText').classList.toggle('hidden', !S.splitTextMode);
+  $('splitWrap').classList.toggle('regionmode', !!S.splitRegion && !S.splitTextMode);
+  $('btnSplitText').classList.toggle('on', !!S.splitTextMode);
+  $('btnSplitRegion').classList.toggle('on', !!S.splitRegion && !S.splitTextMode);
+  $('btnSplitRegion').disabled = !!S.splitTextMode;
+}
+function applySplitZoom() {
+  if ($('splitWrap')) $('splitWrap').style.width = Math.round((S.splitZoom || 1) * 100) + '%';
+  $('splitZoomLabel').textContent = Math.round((S.splitZoom || 1) * 100) + '%';
+}
 function splitZoom(d) {
-  S.splitZoom = d === 0 ? 1 : Math.max(0.5, Math.min(3, S.splitZoom * (d > 0 ? 1.25 : 0.8)));
-  $('splitPageImg').style.width = S.splitZoom * 100 + '%';
-  $('splitZoomLabel').textContent = Math.round(S.splitZoom * 100) + '%';
+  S.splitZoom = d === 0 ? 1 : Math.max(0.5, Math.min(3, (S.splitZoom || 1) * (d > 0 ? 1.25 : 0.8)));
+  applySplitZoom();
+}
+function toggleSplitText() {
+  S.splitTextMode = !S.splitTextMode;
+  if (S.splitTextMode) { S.splitRegion = false; loadSplitText(); }
+  applySplitView();
+}
+function toggleSplitRegion() {
+  if (S.splitTextMode) return;
+  S.splitRegion = !S.splitRegion;
+  applySplitView();
+  if (S.splitRegion) toast('Kéo chuột trên ảnh để chọn vùng cần OCR lại');
+}
+async function loadSplitText() {
+  const docId = S.splitDoc, uid = S.cur;
+  if (!docId || !uid) return;
+  $('splitText').innerHTML = `<div class="splittexthead"><span class="muted small" id="splitTextInfo">Đang tải…</span><button class="btn small" onclick="copySplitText()">${ic('copy')} Copy</button></div><div class="splittextbody" id="splitTextBody"></div>`;
+  try {
+    const r = await call('ocr_result', docId, uid);
+    if (S.cur !== uid || !S.splitTextMode) return;
+    if (!r) {
+      $('splitTextBody').innerHTML = '<div class="empty">Trang này chưa được nhận dạng. Bấm “Phân tích tài liệu”, hoặc dùng “Vùng OCR” để đọc một vùng.</div>';
+      $('splitTextInfo').textContent = 'Chưa có OCR';
+      return;
+    }
+    $('splitTextBody').textContent = r.text || '';
+    const conf = r.confidence != null ? ` · ${Math.round(r.confidence * 100)}%` : '';
+    $('splitTextInfo').textContent = `${r.engine || ''}${conf}`.trim() || 'Đã nhận dạng';
+  } catch (e) { fail(e); }
+}
+function copySplitText() { const b = $('splitTextBody'); copyText(b ? b.textContent : ''); }
+function bindSplitViewer() {
+  let start = null;
+  const wrap = () => $('splitWrap');
+  const rel = e => { const r = wrap().getBoundingClientRect(); return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))]; };
+  $('splitPaper').addEventListener('mousedown', e => {
+    if (!S.splitRegion || S.splitTextMode || !wrap() || wrap().classList.contains('hidden') || !wrap().contains(e.target)) return;
+    start = rel(e); e.preventDefault();
+  });
+  window.addEventListener('mousemove', e => {
+    if (!start) return;
+    const p = rel(e), s = $('splitRegionSel');
+    s.style.display = 'block';
+    s.style.left = Math.min(p[0], start[0]) * 100 + '%'; s.style.top = Math.min(p[1], start[1]) * 100 + '%';
+    s.style.width = Math.abs(p[0] - start[0]) * 100 + '%'; s.style.height = Math.abs(p[1] - start[1]) * 100 + '%';
+  });
+  window.addEventListener('mouseup', async e => {
+    if (!start) return;
+    const p = rel(e), box = [Math.min(p[0], start[0]), Math.min(p[1], start[1]), Math.max(p[0], start[0]), Math.max(p[1], start[1])];
+    start = null;
+    $('splitRegionSel').style.display = 'none';
+    if (box[2] - box[0] < 0.01 || box[3] - box[1] < 0.005) return;
+    $('footerInfo').textContent = 'Đang OCR vùng chọn…';
+    try { const r = await call('ocr_region', S.splitDoc, S.cur, box); showRegionResultSplit(r); }
+    catch (err) { fail(err); }
+  });
+}
+function showRegionResultSplit(r) {
+  openModal(`<h2>Kết quả OCR vùng chọn</h2><p class="sub small">${esc(r.engine || '')}</p>
+    <textarea class="input w100" id="regText" rows="6">${esc(r.text)}</textarea>
+    <div class="row between mt"><button class="btn" onclick="closeModal()">Đóng</button><button class="btn primary" id="regCopy">${ic('copy')} Copy</button></div>`);
+  $('regCopy').onclick = () => copyText($('regText').value);
 }
 function startsList() { return S.groups.map(g => g.start_uid); }
 async function applyStarts(starts) {

@@ -27,7 +27,7 @@
           liệu</span></button>
       <button class="nav" data-page="split"><span class="ico"><i data-ic="scissors"></i></span><span>Tách &amp; ghép
           PDF</span></button>
-      <button class="nav" data-page="batch"><span class="ico"><i data-ic="layers"></i></span><span>Xử lý hàng
+      <button class="nav hidden" data-page="batch"><span class="ico"><i data-ic="layers"></i></span><span>Xử lý hàng
           loạt</span></button>
       <button class="nav" data-page="history"><span class="ico"><i data-ic="history"></i></span><span>Lịch
           sử</span></button>
@@ -79,7 +79,7 @@
             <div class="card metric"><small>Mô hình đã cài</small><b id="mModels">0/5</b><small id="mModelsLoaded">Chưa
                 sử dụng</small></div>
           </div>
-          <div class="grid cols3" style="margin-bottom:19px">
+          <div class="grid cols2" style="margin-bottom:19px">
             <div class="card cardpad">
               <h3>OCR tài liệu</h3>
               <p class="sub small">Nhận dạng chữ và bảng từ PDF hoặc ảnh. Xuất Word, Excel hoặc PDF có thể tìm kiếm.</p>
@@ -92,7 +92,7 @@
                 style="margin-top:17px" class="btn small" onclick="navigate('split')">Mở công cụ <i
                   data-ic="arrow-right"></i></button>
             </div>
-            <div class="card cardpad">
+            <div class="card cardpad hidden">
               <h3>Xử lý hàng loạt</h3>
               <p class="sub small">OCR, tách hoặc đổi tên nhiều tài liệu cùng lúc.</p>
               <button style="margin-top:17px" class="btn small" onclick="navigate('batch')">Tạo tác vụ <i
@@ -291,6 +291,14 @@
                     onclick="splitZoom(1)" title="Phóng to"><i data-ic="plus"></i></button>
                 </div>
                 <div class="row">
+                  <button class="btn small" id="btnSplitRegion" onclick="toggleSplitRegion()"
+                    title="Kéo chọn một vùng trên ảnh để OCR lại rồi copy"><i
+                      data-ic="square-dashed-mouse-pointer"></i> <span class="lbl">Vùng OCR</span></button><button
+                    class="btn small" id="btnSplitText" onclick="toggleSplitText()"
+                    title="Xem văn bản dạng chữ để copy"><i data-ic="file-text"></i> <span
+                      class="lbl">Văn bản</span></button>
+                </div>
+                <div class="row">
                   <button class="btn small" onclick="rotatePages(90)" title="Xoay 90°"><i data-ic="rotate-cw"></i> <span
                       class="lbl">Xoay</span></button><button class="btn small" id="btnBoundary"
                     onclick="toggleBoundary()"></button><button class="btn small" id="btnIsolate"
@@ -304,7 +312,9 @@
                 </div>
               </div>
               <div class="paperview" id="splitPaper">
-                <img id="splitPageImg" class="hidden" alt="Trang đang xem">
+                <div class="splitwrap hidden" id="splitWrap"><img id="splitPageImg" alt="Trang đang xem"><div
+                    class="regionsel" id="splitRegionSel"></div></div>
+                <div class="splittext hidden" id="splitText"></div>
                 <div class="empty" id="splitEmpty">Chọn PDF hoặc ảnh để bắt đầu<br><br><button class="btn small"
                     onclick="addDocuments('split')"><i data-ic="plus"></i> Chọn tài liệu</button></div>
               </div>
