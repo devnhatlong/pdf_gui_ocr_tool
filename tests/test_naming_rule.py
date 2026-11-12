@@ -20,14 +20,16 @@ class AsciiNameTests(unittest.TestCase):
 
     def test_summary_joined_without_accents(self):
         fields = {"so": "56/BC-CAT", "ngay": "19/10/2026", "trichyeu": "Quyết định bổ nhiệm kỹ thuật viên sơ cấp"}
-        self.assertEqual(self.build(fields, "{so}_{ngay}_{trichyeu}"), "56_19-10-2026_QuyetDinhBoNhiemKyThuatVienSoCap")
+        self.assertEqual(self.build(fields, "{so}_{ngay}_{trichyeu}"), "56_19102026_QuyetDinhBoNhiemKyThuatVienSoCap")
 
     def test_d_letter_and_punctuation(self):
         fields = {"so": "496/BCĐX-PV01", "trichyeu": "V/v đề nghị kiểm tra, sửa chữa (đợt 2) tháng 9/2026"}
-        self.assertEqual(self.build(fields, "{so}_{trichyeu}"), "496_VeViecDeNghiKiemTraSuaChuaDot2Thang9-2026")
+        self.assertEqual(self.build(fields, "{so}_{trichyeu}"), "496_VeViecDeNghiKiemTraSuaChuaDot2Thang92026")
 
-    def test_other_fields_lose_accents(self):
-        self.assertEqual(self.build(FIELDS, "{loai}_{coquan}_{so}"), "QD_UBND_123")
+    def test_other_fields_keep_accents(self):
+        # chỉ trích yếu bỏ dấu; loại / cơ quan / số giữ nguyên (QĐ, CALĐ)
+        fields = {**FIELDS, "coquan": "CALĐ"}
+        self.assertEqual(self.build(fields, "{loai}_{coquan}_{so}_{trichyeu}"), "QĐ_CALĐ_123_VeViecPheDuyetKeHoach")
 
     def test_off_keeps_vietnamese(self):
         fields = {"so": "56/BC-CAT", "trichyeu": "Quyết định bổ nhiệm"}
@@ -43,7 +45,7 @@ class AsciiNameTests(unittest.TestCase):
         values = {"naming_rule": "{so}_{loai}_{trichyeu}", "slash_replacement": "-", "filename_ascii": True}
         api = SimpleNamespace(_settings=SimpleNamespace(get=values.get))
         fields = {"so": "1794/QĐ-XPHC", "loai": "QĐ", "trichyeu": "Về việc thi đua"}
-        self.assertEqual(Api._file_name(api, fields), "1794_QD_VeViecThiDua.pdf")
+        self.assertEqual(Api._file_name(api, fields), "1794_QĐ_VeViecThiDua.pdf")
         values["filename_ascii"] = False
         self.assertEqual(Api._file_name(api, fields), "1794_QĐ_Về việc thi đua.pdf")
 
@@ -57,20 +59,20 @@ class NamingRuleTests(unittest.TestCase):
             return Settings(path).get("naming_rule")
 
     def test_default_rule_is_number_type_agency_date_summary(self):
-        self.assertEqual(DEFAULTS["naming_rule"], "{coquan}_{loai}_{so}_{ngay}_{trichyeu}")
+        self.assertEqual(DEFAULTS["naming_rule"], "{loai}_{coquan}_{so}_{ngay}_{trichyeu}")
         self.assertEqual(metadata.build_filename(FIELDS, DEFAULTS["naming_rule"]),
-                         "UBND_QĐ_123_05-11-2026_Về việc phê duyệt kế hoạch.pdf")
+                         "QĐ_UBND_123_05112026_Về việc phê duyệt kế hoạch.pdf")
 
     def test_user_example(self):
         fields = {"loai": "BC", "coquan": "CAT", "so": "56/BC-CAT", "ngay": "19/10/2026",
                   "trichyeu": "Quyết định bổ nhiệm kỹ thuật viên sơ cấp"}
         self.assertEqual(metadata.build_filename(fields, DEFAULTS["naming_rule"], ext=""),
-                         "CAT_BC_56_19-10-2026_Quyết định bổ nhiệm kỹ thuật viên sơ cấp")
+                         "BC_CAT_56_19102026_Quyết định bổ nhiệm kỹ thuật viên sơ cấp")
 
     def test_summary_all_caps_and_illegal_characters(self):
         self.assertEqual(metadata.build_filename({"trichyeu": "VỀ VIỆC PHÊ DUYỆT"}), "Về việc phê duyệt.pdf")
         self.assertEqual(metadata.build_filename({"trichyeu": "về Nghị định 12/2024: \"sửa đổi\"?"}),
-                         "Về Nghị định 12-2024 sửa đổi.pdf")
+                         "Về Nghị định 122024 sửa đổi.pdf")
 
     def test_summary_expands_vv(self):
         for summary in ("V/v tổ chức tập huấn", "V/V: tổ chức tập huấn", "v / v tổ chức tập huấn"):
@@ -108,7 +110,7 @@ class NamingRuleTests(unittest.TestCase):
         self.assertEqual(name, "05.11.2026")
 
     def test_slash_replacement_default_and_saved_value(self):
-        self.assertEqual(DEFAULTS["slash_replacement"], "-")
+        self.assertEqual(DEFAULTS["slash_replacement"], "")   # trống: 28/08/2025 -> 28082025
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "settings.json")
             Settings(path).update({"slash_replacement": "."})

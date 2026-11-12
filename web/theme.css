@@ -162,6 +162,7 @@ body.dragpages .newdrop { display:flex; }
 .namebar .select { padding:6px 28px 6px 9px; font-size:13px; line-height:1.45; background-position:right 10px center; }
 .fieldrow { display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:6px 10px; }
 .fieldrow .fieldwide { grid-column:1 / -1; }
+.fieldrow .fieldmid { grid-column:span 2; }
 .namebar .fieldrow .input, .namebar .fieldrow .select { height:34px; box-sizing:border-box; font-size:13px; padding:6px 9px; }
 .namebar .fieldrow .select { padding-right:28px; background-position:right 10px center; }
 .viewbar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px 10px; padding:8px 13px; border-bottom:1px solid var(--line); flex-shrink:0; }

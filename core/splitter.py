@@ -192,7 +192,7 @@ def build_groups(doc, starts, settings, names=None):
         g["do_mat"] = metadata.detect_secrecy(doc.ocr.get(g["uids"][0]))   # độ mật từ dấu đóng đầu trang
         g["fields"] = metadata.meta_to_fields(meta)   # loai/coquan/so(số)/ngay/trichyeu để hiển thị & sửa
         auto = metadata.build_filename(g["fields"], rule, ext="",
-                                       slash=settings.get("slash_replacement", "-"),
+                                       slash=settings.get("slash_replacement", ""),
                                        ascii_name=settings.get("filename_ascii", False))
         g["auto_name"] = auto or f"Van_ban_{i + 1:02d}"
         g["name"] = names.get(g["start_uid"]) or g["auto_name"]

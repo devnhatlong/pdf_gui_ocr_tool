@@ -68,13 +68,13 @@ class _Extractor:
 
         # === SỐ KÝ HIỆU === (giữ chữ Đ: QĐ, NĐ-CP...)
         t_so = re.sub(r"\s+", " ", self.strip_marks(" ".join(lines)))
-        for p in [
-            r"\bso[:\-\s]+([a-z0-9đ\/\-\.]+)",
-            r"\bs0[:\-\s]+([a-z0-9đ\/\-\.]+)",
-        ]:
+        # Số viết tay thường cách dấu /: "Số: 2420 /QĐ-CAT-PX01" -> cho phép khoảng trắng quanh "/"
+        # (không nối qua khoảng trắng trước "-" để khỏi ăn sang chữ phía sau)
+        code = r"((?:[a-z0-9đ\.]+)?(?:\s*/\s*[a-z0-9đ\.\-]+)+|[a-z0-9đ\.\-]+)"
+        for p in [r"\bso[:\-\s]+" + code, r"\bs0[:\-\s]+" + code]:
             m = re.search(p, t_so)
             if m:
-                result["so_ky_hieu"] = m.group(1).upper()
+                result["so_ky_hieu"] = re.sub(r"\s+", "", m.group(1)).upper()
                 break
 
         # === NGÀY BAN HÀNH ===
@@ -396,6 +396,7 @@ DEFAULT_AGENCY_MAP = [
     {"ten": "Ủy ban nhân dân", "tat": "UBND"},
     {"ten": "Hội đồng nhân dân", "tat": "HĐND"},
     {"ten": "Công an tỉnh", "tat": "CAT"},
+    {"ten": "Công an tỉnh Lâm Đồng", "tat": "CALĐ"},   # tên dài hơn được ưu tiên hơn "Công an tỉnh"
     {"ten": "Công an thành phố", "tat": "CATP"},
     {"ten": "Công an huyện", "tat": "CAH"},
     {"ten": "Công an xã", "tat": "CAX"},
@@ -615,13 +616,13 @@ def sheet_range(positions, per_sheet=2):
 def so_number(value):
     """Số văn bản = chỉ phần số trước dấu / (1794/QĐ-XPHC -> 1794, 1831/PV01-CNTT -> 1831)."""
     m = re.match(r"\s*(\d+[A-Za-zĐđ]?)", value or "")
-    return m.group(1) if m else (value or "").strip()
+    return m.group(1) if m else (value or "").split("/")[0].strip()   # "/QĐ-..." (số viết tay chưa đọc được) -> ""
 
 
-def build_filename(fields, rule="{so}_{ngay}_{trichyeu}", ext=".pdf", slash="-", ascii_name=False):
+def build_filename(fields, rule="{so}_{ngay}_{trichyeu}", ext=".pdf", slash="", ascii_name=False):
     """fields: loai, coquan, so, ngay (dd/mm/yyyy), trichyeu. Phần rỗng được bỏ cùng dấu nối.
     slash: chuỗi người dùng chọn thay cho dấu / (không dùng được trong tên file): 123/BC-CAT -> 123-BC-CAT.
-    ascii_name: tên file không dấu, trích yếu viết liền (VeViecBoNhiem)."""
+    ascii_name: chỉ trích yếu không dấu, viết liền (VeViecBoNhiem); cơ quan, loại, số giữ nguyên dấu (CALĐ, QĐ)."""
     values = {
         "loai": (fields.get("loai") or "").strip(),
         "coquan": (fields.get("coquan") or "").strip(),
@@ -630,9 +631,7 @@ def build_filename(fields, rule="{so}_{ngay}_{trichyeu}", ext=".pdf", slash="-",
         "trichyeu": _summary_part(re.sub(r"\s+", " ", fields.get("trichyeu") or "").strip()),
     }
     if ascii_name:
-        values = {k: to_ascii(v) for k, v in values.items()}
-        values["trichyeu"] = _joined(values["trichyeu"])
-        rule = to_ascii(rule)
+        values["trichyeu"] = _joined(to_ascii(values["trichyeu"]))
     # Giữ chỗ bằng \0 để bước gộp dấu nối bên dưới không làm đổi chuỗi người dùng chọn (VD: "--")
     values = {k: re.sub(r'[\\:*?"<>|\r\n\t]', "", v.replace("/", "\0")) for k, v in values.items()}
     name = rule
@@ -644,7 +643,53 @@ def build_filename(fields, rule="{so}_{ngay}_{trichyeu}", ext=".pdf", slash="-",
     return (name[:180] + ext) if name else ""
 
 
+def split_so_ky_hieu(value):
+    """Tách số ký hiệu để ghép lại theo công thức: phần số / [năm/] LOẠI hậu tố.
+    2420/QĐ-CAT-PX01 -> co_loai=True, hauto="-CAT-PX01"; 45/2026/NĐ-CP -> nam="2026", hauto="-CP";
+    1831/PV01-CNTT (công văn, sau / là mã đơn vị) -> co_loai=False, hauto="PV01-CNTT"; 17 -> rỗng."""
+    s = re.sub(r"\s+", "", value or "")
+    out = {"nam": "", "co_loai": False, "hauto": ""}
+    if "/" not in s:
+        return out
+    after = s.split("/", 1)[1]
+    m = re.match(r"(\d{4})/(.*)$", after)
+    if m:
+        out["nam"], after = m.group(1), m.group(2)
+    m = re.match(r"[A-Za-zĐđ]+(?=$|[-/.])(.*)$", after)
+    if m:
+        out["co_loai"], out["hauto"] = True, m.group(1)
+    else:
+        out["hauto"] = after
+    return out
+
+
+DEFAULT_SO_KY_HIEU_RULE = "{so}/{loai}{hauto}"
+
+
+def build_so_ky_hieu(fields, rule=DEFAULT_SO_KY_HIEU_RULE):
+    """Số ký hiệu cho cột Excel, ghép từ các ô đã sửa: {so}/{loai}{hauto} -> 2420/QĐ-CAT-PX01.
+    fields["sokyhieu"] (người dùng sửa tay) được ưu tiên. {loai} chỉ chèn khi số gốc có mã loại
+    (công văn 1831/PV01-CNTT giữ nguyên). Giữ đồng bộ với buildSoKyHieu() trong web/app.js."""
+    manual = (fields.get("sokyhieu") or "").strip()
+    if manual:
+        return manual
+    nam, hauto = fields.get("nam") or "", fields.get("hauto") or ""
+    loai = (fields.get("loai") or "").strip() if fields.get("co_loai") else ""
+    if nam:
+        if loai:
+            loai = f"{nam}/{loai}"
+        else:
+            hauto = f"{nam}/{hauto}"
+    values = {"so": so_number(fields.get("so")), "loai": loai, "coquan": (fields.get("coquan") or "").strip(),
+              "hauto": hauto}
+    out = rule or DEFAULT_SO_KY_HIEU_RULE
+    for key, value in values.items():
+        out = out.replace("{" + key + "}", value)
+    out = re.sub(r"/{2,}", "/", out).replace("/-", "/")
+    return out.strip(" -").rstrip("/")   # giữ "/" đầu khi chưa có số (/QĐ-CAT-PX01) để người dùng thấy còn thiếu
+
+
 def meta_to_fields(meta):
     return {"loai": meta.get("loai_van_ban", ""), "coquan": meta.get("co_quan_viet_tat", ""),
             "so": so_number(meta.get("so_ky_hieu", "")), "ngay": meta.get("ngay_ban_hanh", ""),
-            "trichyeu": meta.get("trich_yeu", "")}
+            "trichyeu": meta.get("trich_yeu", ""), **split_so_ky_hieu(meta.get("so_ky_hieu", ""))}

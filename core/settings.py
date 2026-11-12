@@ -13,9 +13,10 @@ DEFAULTS = {
     "export_format": "pdf",            # pdf | searchable_pdf | docx | xlsx | txt
     "keep_original": True,
     "folder_by_date": True,
-    "naming_rule": "{coquan}_{loai}_{so}_{ngay}_{trichyeu}",
-    "slash_replacement": "-",          # chuỗi thay cho dấu / trong tên file
-    "filename_ascii": True,            # tên file không dấu, trích yếu viết liền (VeViecBoNhiem)
+    "naming_rule": "{loai}_{coquan}_{so}_{ngay}_{trichyeu}",
+    "slash_replacement": "",           # chuỗi thay cho dấu / trong tên file (trống: 28/08/2025 -> 28082025)
+    "sokyhieu_rule": metadata.DEFAULT_SO_KY_HIEU_RULE,   # số ký hiệu ghi vào cột Excel (không dùng cho tên file)
+    "filename_ascii": True,            # trích yếu không dấu, viết liền (VeViecBoNhiem); phần khác giữ dấu
     "sheet_pages": 2,                  # số trang mỗi tờ (quét 2 mặt = 2) - cột Tờ số trong Excel
     # Đếm cả trang trắng khi tính số tờ: theo cờ "remove_blank_pages" (bật bỏ trắng -> không đếm)
     "doc_type_map": list(metadata.DEFAULT_TYPE_MAP),     # bảng viết tắt loại văn bản (sửa trong Cài đặt)
@@ -42,7 +43,7 @@ DEFAULTS = {
 }
 
 
-OLD_NAMING_RULE = "{loai}_{coquan}_{so}_{ngay}_{trichyeu}"   # mặc định cũ, tự đổi sang quy tắc mới
+OLD_NAMING_RULE = "{coquan}_{loai}_{so}_{ngay}_{trichyeu}"   # mặc định bản 2.x trước, tự đổi sang quy tắc mới
 # Các quy tắc là mặc định của bản cũ (khi {so} còn gồm cả loại/cơ quan) -> tự nâng lên quy tắc mới
 SUPERSEDED_RULES = {OLD_NAMING_RULE, "{so}_{ngay}_{trichyeu}"}
 

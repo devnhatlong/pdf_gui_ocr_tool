@@ -1030,7 +1030,7 @@ function groupCardHtml(g, i, pages, chosen, docId) {
   const thr = S.settings.split_threshold || 70;
   const a = pages.indexOf(g.uids[0]) + 1, b = pages.indexOf(g.uids[g.uids.length - 1]) + 1;
   const cc = g.confidence < thr ? 'low' : g.confidence < 90 ? 'mid' : '';
-  return `<div class="docgroup ${chosen ? 'chosen' : ''} ${g.confidence < thr ? 'low' : ''}" data-i="${i}"${docId ? ` data-doc="${docId}"` : ''}><div class="row between"><strong style="font-size:12px"><span class="gdot" style="background:${GROUP_COLORS[i % GROUP_COLORS.length]}"></span><span class="gname">${esc(g.name)}</span></strong>${(g.reasons || []).length ? `<span class="confidence ${cc}">${g.confidence}%</span>` : ''}</div><div class="muted small" style="margin:7px 0 0 15px">Trang ${a}–${b} · ${g.uids.length} trang${g.type ? ' · ' + esc(g.type) : ''}${g.agency && g.agency !== 'Khác' ? ' · ' + esc(g.agency) : ''}</div></div>`;
+  return `<div class="docgroup ${chosen ? 'chosen' : ''} ${g.confidence < thr ? 'low' : ''}" data-i="${i}"${docId ? ` data-doc="${docId}"` : ''}><div class="row between"><strong style="font-size:12px"><span class="gdot" style="background:${GROUP_COLORS[i % GROUP_COLORS.length]}"></span><span class="gname">${esc(g.name)}</span></strong>${(g.reasons || []).length ? `<span class="confidence ${cc}">${g.confidence}%</span>` : ''}</div><div class="muted small" style="margin:7px 0 0 15px">Trang ${a}-${b} · ${g.uids.length} trang${g.type ? ' · ' + esc(g.type) : ''}${g.agency && g.agency !== 'Khác' ? ' · ' + esc(g.agency) : ''}</div></div>`;
 }
 // Khi mở nhiều tài liệu: khung Văn bản chia theo từng file, file đang xem có thể chỉnh sửa, file khác bấm để chuyển sang
 function renderFileGroups() {
@@ -1043,7 +1043,7 @@ function renderFileGroups() {
     const open = !S.collapsed.has(d.id);
     const body = !open ? ''
       : groups.length ? `<div class="filegroups">${groups.map((g, i) => groupCardHtml(g, i, pages, cur && S.selGroup === i, cur ? '' : d.id)).join('')}</div>`
-      : `<div class="filegroups"><div class="filenote">${busy ? 'Đang tìm các văn bản trong file…' : `${d.page_count} trang · chưa phân tích <button class="btn small" data-an="${d.id}" style="margin-left:6px">${ic('sparkles')} Phân tích file này</button>`}</div></div>`;
+        : `<div class="filegroups"><div class="filenote">${busy ? 'Đang tìm các văn bản trong file…' : `${d.page_count} trang · chưa phân tích <button class="btn small" data-an="${d.id}" style="margin-left:6px">${ic('sparkles')} Phân tích file này</button>`}</div></div>`;
     return `<div class="filehead ${cur ? 'cur' : ''}" data-doc="${d.id}" title="${cur ? 'Đang xem' : 'Bấm để mở'}: ${esc(d.name)}"><button class="fold" data-fold="${d.id}" title="${open ? 'Thu gọn' : 'Mở rộng'}">${ic(open ? 'chevron-down' : 'chevron-right')}</button>${icon}<span class="fname">${esc(d.name)}</span><span class="fmeta">${esc(meta)}</span></div>${body}`;
   }).join('');
   $('groups').querySelectorAll('[data-fold]').forEach(b => b.onclick = e => { e.stopPropagation(); const id = b.dataset.fold; S.collapsed.has(id) ? S.collapsed.delete(id) : S.collapsed.add(id); renderGroups(); updateFoldAll(); });
@@ -1129,8 +1129,10 @@ function renderSplitFields(g) {
     $('splitFields').dataset.sig = sig;
     const parts = keys.map(k => `<div${k === 'trichyeu' ? ' class="fieldwide"' : ''}><label class="fieldlabel">${SPLIT_FIELDS[k].label}</label><input class="input w100" data-fk="${k}" placeholder="${SPLIT_FIELDS[k].ph}" oninput="editGroupField('${k}', this.value)"></div>`);
     const secrecy = `<div><label class="fieldlabel" title="Tự nhận từ dấu đóng, sửa nếu sai; ghi vào Excel danh mục">Độ mật</label><select class="select w100" id="splitSecrecy" onchange="setGroupSecrecy(this.value)"><option>Không mật</option><option>Mật</option><option>Tối mật</option><option>Tuyệt mật</option></select></div>`;
+    // Số ký hiệu (cột Excel, không dùng cho tên file): tự ghép theo công thức trong Cài đặt, sửa tay được
+    const skh = `<div class="fieldmid"><label class="fieldlabel" title="Ghi vào cột Số ký hiệu của Excel danh mục, không dùng cho tên file. Tự ghép từ Số + Loại + phần sau theo công thức trong Cài đặt; sửa tay nếu OCR đọc sai, xóa trống để tự ghép lại">Số ký hiệu</label><input class="input w100" id="splitSoKyHieu" oninput="editSoKyHieu(this.value)"></div>`;
     const ti = keys.indexOf('trichyeu');   // đặt Độ mật cùng hàng các trường ngắn, trước ô Trích yếu (full width)
-    if (ti >= 0) parts.splice(ti, 0, secrecy); else parts.push(secrecy);
+    if (ti >= 0) parts.splice(ti, 0, secrecy, skh); else parts.push(secrecy, skh);
     $('splitFields').innerHTML = parts.join('');
   }
   const fields = g ? groupFields(g) : {};
@@ -1138,6 +1140,36 @@ function renderSplitFields(g) {
     if (document.activeElement !== inp) inp.value = fields[inp.dataset.fk] || '';
     inp.disabled = !g;
   });
+  renderSoKyHieu(g);
+}
+function renderSoKyHieu(g) {
+  const inp = $('splitSoKyHieu');
+  if (!inp) return;
+  const f = g ? groupFields(g) : {}, auto = buildSoKyHieu({ ...f, sokyhieu: '' });
+  inp.placeholder = auto || 'VD: 123/QĐ-CAT';
+  if (document.activeElement !== inp) inp.value = (f.sokyhieu || '').trim() || auto;
+  inp.disabled = !g;
+}
+function editSoKyHieu(value) {
+  const g = S.groups[S.selGroup];
+  if (!g) return;
+  const f = { ...groupFields(g) };
+  const auto = buildSoKyHieu({ ...f, sokyhieu: '' });
+  if (value.trim() && value.trim() !== auto) f.sokyhieu = value.trim(); else delete f.sokyhieu;   // trống = tự ghép lại
+  S.groupFields[g.start_uid] = f;
+}
+// Số ký hiệu ghép từ các ô đã sửa: {so}/{loai}{hauto} -> 2420/QĐ-CAT-PX01. Giữ đồng bộ với
+// metadata.build_so_ky_hieu() (Python): {loai} chỉ chèn khi số gốc có mã loại (công văn 1831/PV01-CNTT giữ nguyên)
+function soNumber(v) { const m = String(v || '').match(/^\s*(\d+[A-Za-zĐđ]?)/); return m ? m[1] : String(v || '').split('/')[0].trim(); }
+function buildSoKyHieu(f) {
+  if ((f.sokyhieu || '').trim()) return f.sokyhieu.trim();
+  let hauto = f.hauto || '', loai = f.co_loai ? (f.loai || '').trim() : '';
+  if (f.nam) { if (loai) loai = `${f.nam}/${loai}`; else hauto = `${f.nam}/${hauto}`; }
+  const vals = { so: soNumber(f.so), loai, coquan: (f.coquan || '').trim(), hauto };
+  let out = S.settings.sokyhieu_rule || '{so}/{loai}{hauto}';
+  Object.entries(vals).forEach(([k, v]) => { out = out.split(`{${k}}`).join(v); });
+  out = out.replace(/\/{2,}/g, '/').split('/-').join('/');
+  return out.replace(/^[\s-]+|[\s-]+$/g, '').replace(/\/+$/, '');
 }
 function renderSelected() {
   const doc = S.docs[S.splitDoc];
@@ -1346,6 +1378,7 @@ function editGroupField(key, value) {
   if (!g) return;
   S.groupFields[g.start_uid] = { ...groupFields(g), [key]: value };
   syncGroupName(g.start_uid);
+  renderSoKyHieu(g);   // Số / Loại đổi thì số ký hiệu tự ghép lại
 }
 const syncGroupName = debounce(async start => {
   const fields = S.groupFields[start];
@@ -1490,7 +1523,7 @@ function registerInfo(g, docId) {
   const f = groupFields(g, docId), m = g.meta || {};
   const secrecy = docId ? (S.secrecyByDoc[docId] || {}) : S.groupSecrecy;
   return {
-    so_ky_hieu: m.so_ky_hieu || f.so || '',
+    so_ky_hieu: buildSoKyHieu(f) || m.so_ky_hieu || '',   // ghép từ các ô đã sửa (Cài đặt > Số ký hiệu)
     ngay: f.ngay || m.ngay_ban_hanh || '',
     co_quan: m.co_quan || f.coquan || '',
     trich_yeu: f.trichyeu || m.trich_yeu || '',
@@ -1509,7 +1542,7 @@ function previewGroupExport(only) {
   const drawList = () => {
     const cls = $('classifyBy').value, ext = { pdf: '.pdf', searchable_pdf: '.pdf', docx: '.docx', txt: '.txt' }[$('groupFormat').value];
     const folderOf = g => cls === 'type' ? (g.type || 'Khác') + '\\' : cls === 'agency' ? (g.agency || 'Khác') + '\\' : '';
-    $('gxList').innerHTML = groups.map((g, i) => `<label class="gxrow"><input type="checkbox" class="check" data-i="${i}" ${picked.has(g) ? 'checked' : ''} ${groups.length > 1 ? '' : 'hidden'}><span>${esc(folderOf(g) + (g.name || 'Van_ban') + ext)} <span class="muted">(trang ${pages.indexOf(g.uids[0]) + 1}–${pages.indexOf(g.uids[g.uids.length - 1]) + 1})</span></span></label>`).join('');
+    $('gxList').innerHTML = groups.map((g, i) => `<label class="gxrow"><input type="checkbox" class="check" data-i="${i}" ${picked.has(g) ? 'checked' : ''} ${groups.length > 1 ? '' : 'hidden'}><span>${esc(folderOf(g) + (g.name || 'Van_ban') + ext)} <span class="muted">(trang ${pages.indexOf(g.uids[0]) + 1}-${pages.indexOf(g.uids[g.uids.length - 1]) + 1})</span></span></label>`).join('');
     $('gxList').querySelectorAll('input').forEach(c => c.onchange = () => { c.checked ? picked.add(groups[c.dataset.i]) : picked.delete(groups[c.dataset.i]); drawButtons(); });
     drawButtons();
   };
@@ -1549,7 +1582,7 @@ function previewAllExport() {
     $('gxList').innerHTML = docs.map(d => {
       const groups = S.groupsByDoc[d.id], set = picked.get(d.id), pages = d.pages.map(p => p.uid);
       return `<label class="gxrow" style="font-weight:600;margin-top:6px"><input type="checkbox" class="check gxfile" data-doc="${d.id}" ${set.size === groups.length ? 'checked' : ''}>${ic('file-text')}<span>${esc(d.name)} <span class="muted">(${set.size}/${groups.length} văn bản)</span></span></label>` +
-        groups.map((g, i) => `<label class="gxrow" style="padding-left:26px"><input type="checkbox" class="check gxone" data-doc="${d.id}" data-i="${i}" ${set.has(g) ? 'checked' : ''}><span>${esc((g.name || 'Van_ban') + ext)} <span class="muted">(trang ${pages.indexOf(g.uids[0]) + 1}–${pages.indexOf(g.uids[g.uids.length - 1]) + 1})</span></span></label>`).join('');
+        groups.map((g, i) => `<label class="gxrow" style="padding-left:26px"><input type="checkbox" class="check gxone" data-doc="${d.id}" data-i="${i}" ${set.has(g) ? 'checked' : ''}><span>${esc((g.name || 'Van_ban') + ext)} <span class="muted">(trang ${pages.indexOf(g.uids[0]) + 1}-${pages.indexOf(g.uids[g.uids.length - 1]) + 1})</span></span></label>`).join('');
     }).join('');
     $('gxList').querySelectorAll('.gxfile').forEach(c => c.onchange = () => { picked.set(c.dataset.doc, new Set(c.checked ? S.groupsByDoc[c.dataset.doc] : [])); drawList(); });
     $('gxList').querySelectorAll('.gxone').forEach(c => c.onchange = () => { const g = S.groupsByDoc[c.dataset.doc][+c.dataset.i], set = picked.get(c.dataset.doc); c.checked ? set.add(g) : set.delete(g); drawList(); });

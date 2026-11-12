@@ -520,14 +520,25 @@
                 /), <span class="kbd">{coquan}</span> lấy từ dòng cơ quan.</p>
               <label class="fieldlabel mt">Ký tự thay cho dấu /</label>
               <input class="input w100 mono" data-key="slash_replacement">
-              <p class="small muted">Áp dụng cho số ký hiệu, ngày và trích yếu, ví dụ 123/BC-DONVI thành 123-BC-DONVI.
-                Để trống thì bỏ dấu /. Không dùng được các ký tự Windows cấm: <span class="kbd">\ / : * ? &quot; &lt;
-                  &gt; |</span></p>
-              <p><label><input type="checkbox" class="check" data-key="filename_ascii"> Tên file không dấu, trích yếu
-                  viết liền</label></p>
-              <p class="small muted">Bật: 123-BC-CAT_19-10-2026_QuyetDinhBoNhiemKyThuatVien. Tắt: giữ nguyên như trích
-                yếu,
-                123-BC-CAT_19-10-2026_Quyết định bổ nhiệm kỹ thuật viên. Các ô thông tin luôn giữ tiếng Việt có dấu.</p>
+              <p class="small muted">Chủ yếu dùng cho ngày ban hành: để trống thì 28/08/2025 thành 28082025, nhập
+                <span class="kbd">-</span> thì thành 28-08-2025. Không dùng được các ký tự Windows cấm: <span
+                  class="kbd">\ / : * ? &quot; &lt; &gt; |</span></p>
+              <p><label><input type="checkbox" class="check" data-key="filename_ascii"> Trích yếu không dấu, viết
+                  liền</label></p>
+              <p class="small muted">Chỉ áp dụng cho phần trích yếu; cơ quan, loại văn bản, số giữ nguyên dấu. Bật:
+                QĐ_CALĐ_24_28082025_VeViecBoNhiemTrinhSatVien. Tắt:
+                QĐ_CALĐ_24_28082025_Về việc bổ nhiệm trinh sát viên.</p>
+            </div>
+            <div class="card cardpad">
+              <h3>Số ký hiệu văn bản</h3>
+              <label class="fieldlabel">Công thức ghép số ký hiệu</label>
+              <input class="input w100 mono" data-key="sokyhieu_rule" placeholder="{so}/{loai}{hauto}">
+              <p class="small muted">Ghi vào cột <b>Số ký hiệu</b> của file Excel danh mục, <b>không</b> dùng cho tên
+                file. Hiện ở ô "Số ký hiệu" sau Độ mật khi tách văn bản, sửa tay được. Dùng: <span
+                  class="kbd">{so}</span> số văn bản, <span class="kbd">{loai}</span> loại văn bản, <span
+                  class="kbd">{hauto}</span> phần sau loại trong số gốc, <span class="kbd">{coquan}</span> cơ quan.
+                Ví dụ số gốc 2420/QĐ-CAT-PX01: <span class="kbd">{so}</span>=2420, <span class="kbd">{loai}</span>=QĐ,
+                <span class="kbd">{hauto}</span>=-CAT-PX01. Sửa ô Số văn bản thì số ký hiệu tự ghép lại theo.</p>
             </div>
             <div class="grid cols2">
               <div class="card cardpad">
