@@ -709,6 +709,35 @@ class Api:
         """Xuất mỗi nhóm thành file riêng. classify: none | type | agency (tạo thư mục con)."""
         doc = self._doc(doc_id)
         folder = folder or self._output_dir(short_stem(doc.name, 60))
+        outputs = self._export_group_files(doc, groups, fmt, classify, folder)
+        register = self._export_register([(doc, groups)], folder)
+        self._history.add("split", doc.name, doc.path, len(doc.pages), detail=f"Xuất {len(outputs)} văn bản",
+                          outputs=outputs + ([register] if register else []), doc_count=len(outputs),
+                          text="\n\n".join(doc.page_text(p.uid) for p in doc.pages))
+        return {"folder": folder, "outputs": outputs, "register": register}
+
+    @_safe
+    def export_groups_multi(self, items, fmt="pdf", classify="none", subfolder=None):
+        """Xuất văn bản của nhiều tài liệu trong 1 lượt: chung 1 thư mục + 1 Excel danh mục.
+        items: [{"doc_id": ..., "groups": [...]}] theo thứ tự hiển thị.
+        subfolder: tên thư mục riêng cho lượt xuất (người dùng tick chọn); bỏ trống = xuất thẳng vào thư mục kết quả."""
+        entries = [(self._doc(it["doc_id"]), it.get("groups") or []) for it in items or []]
+        entries = [(d, gs) for d, gs in entries if gs]
+        if not entries:
+            return {"error": "Chưa chọn văn bản nào để xuất"}
+        sub = re.sub(r'[\\/:*?"<>|\r\n\t]', "_", (subfolder or "").strip()).strip(" .")
+        folder = self._output_dir(sub[:100]) if sub else self._output_dir()
+        outputs = []
+        for doc, groups in entries:
+            outputs += self._export_group_files(doc, groups, fmt, classify, folder)
+        register = self._export_register(entries, folder)
+        names = ", ".join(d.name for d, _ in entries)
+        self._history.add("split", f"{len(entries)} tài liệu: {names}"[:200], entries[0][0].path,
+                          sum(len(d.pages) for d, _ in entries), detail=f"Xuất {len(outputs)} văn bản",
+                          outputs=outputs + ([register] if register else []), doc_count=len(outputs))
+        return {"folder": folder, "outputs": outputs, "register": register, "files": len(entries)}
+
+    def _export_group_files(self, doc, groups, fmt, classify, folder):
         outputs = []
         for g in groups:
             sub = {"type": g.get("type"), "agency": g.get("agency")}.get(classify) or ""
@@ -718,18 +747,29 @@ class Api:
             path = unique_path(os.path.join(target_dir, name + ext), self._settings.get("overwrite"))
             exporters.export(fmt, self._export_pages(doc, set(g["uids"])), path, doc)
             outputs.append(path)
-        register = self._export_register(doc, groups, folder)
-        self._history.add("split", doc.name, doc.path, len(doc.pages), detail=f"Xuất {len(outputs)} văn bản",
-                          outputs=outputs + ([register] if register else []), doc_count=len(outputs),
-                          text="\n\n".join(doc.page_text(p.uid) for p in doc.pages))
-        return {"folder": folder, "outputs": outputs, "register": register}
+        return outputs
 
-    def _export_register(self, doc, groups, folder):
-        """Ghi sổ danh mục văn bản (Excel) cho các nhóm đã xuất. Cột Tờ số tính theo số tờ giấy."""
+    def _export_register(self, entries, folder):
+        """Ghi sổ danh mục văn bản (Excel) cho các nhóm đã xuất. entries: [(doc, groups)].
+        Cột Tờ số tính theo số tờ giấy, đánh liên tục qua các tài liệu theo thứ tự (như 1 bộ hồ sơ)."""
         per_sheet = self._settings.get("sheet_pages") or 2
         count_blank = not self._settings.get("remove_blank_pages")   # đếm số tờ theo cùng cờ "Bỏ trang trắng khi xuất"
-        seq = [p for p in doc.pages if count_blank or not getattr(p, "blank", False)]
-        pos = {p.uid: i + 1 for i, p in enumerate(seq)}   # vị trí trang (đếm cả trang trắng tuỳ cài đặt)
+        rows, offset = [], 0
+        for doc, groups in entries:
+            seq = [p for p in doc.pages if count_blank or not getattr(p, "blank", False)]
+            if offset % per_sheet:   # tài liệu mới bắt đầu ở tờ mới
+                offset += per_sheet - offset % per_sheet
+            pos = {p.uid: offset + i + 1 for i, p in enumerate(seq)}   # vị trí trang (đếm cả trang trắng tuỳ cài đặt)
+            offset += len(seq)
+            rows += self._register_rows(groups, pos, per_sheet)
+        try:
+            path = unique_path(os.path.join(folder, "Danh muc van ban.xlsx"), self._settings.get("overwrite"))
+            return exporters.export_register(rows, path)
+        except Exception:
+            return None
+
+    @staticmethod
+    def _register_rows(groups, pos, per_sheet):
         rows = []
         for g in groups:
             info = g.get("info") or {}
@@ -744,11 +784,7 @@ class Api:
                 "do_mat": info.get("do_mat") or g.get("do_mat") or "Không mật",
                 "ghi_chu": info.get("ghi_chu", ""),
             })
-        try:
-            path = unique_path(os.path.join(folder, "Danh muc van ban.xlsx"), self._settings.get("overwrite"))
-            return exporters.export_register(rows, path)
-        except Exception:
-            return None
+        return rows
 
     @_safe
     def save_document(self, doc_id, path=None):

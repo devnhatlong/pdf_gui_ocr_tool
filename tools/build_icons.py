@@ -22,7 +22,8 @@ ICONS = [
     "qr-code", "cloud-upload", "folder-plus", "folder-open", "folder", "x", "play", "pause", "square", "check",
     "circle-check", "circle-x", "clock", "loader-circle", "file-text", "files", "lightbulb", "corner-down-right",
     "key-round", "import", "palette", "shield-check", "info", "brush-cleaning", "file-down", "table", "list-tree",
-    "external-link", "tag", "folder-input", "chart-bar", "monitor",
+    "external-link", "tag", "folder-input", "chart-bar", "monitor", "chevron-down", "chevron-right",
+    "chevrons-down-up", "chevrons-up-down",
     # mô hình AI
     "zap", "languages", "layout-template", "brain-circuit",
 ]

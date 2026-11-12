@@ -198,13 +198,14 @@ def _csv(pages, out, doc):
             w.writerows(rows)
 
 
-REGISTER_HEADERS = ["STT", "Số ký hiệu", "Ngày ban hành", "Cơ quan ban hành", "Trích yếu",
+REGISTER_HEADERS = ["STT", "Số ký hiệu", "Ngày ban hành", "Trích yếu",
                     "Tờ số", "Độ mật\n(Không mật/Mật/Tối mật/Tuyệt mật)", "Ghi chú"]
-_REGISTER_WIDTHS = [8, 18, 14, 20, 46, 9, 22, 16]
+_REGISTER_WIDTHS = [8, 20, 15, 56, 9, 22, 16]
 
 
 def export_register(rows, out_path):
-    """Sổ danh mục văn bản (Excel). rows: list dict {so, ngay, coquan, trichyeu, to_so, do_mat, ghi_chu}.
+    """Sổ danh mục văn bản (Excel). rows: list dict {so, ngay, trichyeu, to_so, do_mat, ghi_chu}
+    (không có cột Cơ quan ban hành; khóa "coquan" nếu có sẽ bị bỏ qua).
     Times New Roman 14, căn giữa toàn bộ, header in đậm."""
     from openpyxl import Workbook
     from openpyxl.cell.rich_text import CellRichText, TextBlock
@@ -224,7 +225,7 @@ def export_register(rows, out_path):
 
     ws.append(REGISTER_HEADERS)
     for i, r in enumerate(rows, start=1):
-        ws.append([i, r.get("so", ""), r.get("ngay", ""), r.get("coquan", ""), r.get("trichyeu", ""),
+        ws.append([i, r.get("so", ""), r.get("ngay", ""), r.get("trichyeu", ""),
                    r.get("to_so", ""), r.get("do_mat", "") or "Không mật", r.get("ghi_chu", "")])
     for c, width in enumerate(_REGISTER_WIDTHS, start=1):
         ws.column_dimensions[get_column_letter(c)].width = width
@@ -236,7 +237,7 @@ def export_register(rows, out_path):
     for cell in ws[1]:
         cell.font = head_font
     # Cột Độ mật: "Độ mật" in đậm, phần "(Không mật/...)" không đậm
-    secret = ws.cell(1, 7)
+    secret = ws.cell(1, next(i for i, h in enumerate(REGISTER_HEADERS, start=1) if h.startswith("Độ mật")))
     secret.value = CellRichText(
         TextBlock(InlineFont(rFont="Times New Roman", sz=14, b=True), "Độ mật\n"),
         TextBlock(InlineFont(rFont="Times New Roman", sz=14, b=False), "(Không mật/Mật/Tối mật/Tuyệt mật)"),

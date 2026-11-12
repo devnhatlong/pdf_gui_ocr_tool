@@ -247,18 +247,24 @@
         <!-- ========================= CẮT GHÉP & TÁCH AI ========================= -->
         <section id="split" class="page">
           <div class="splitbar">
-            <div class="row"><select id="splitDocSelect" class="select" onchange="selectSplitDoc(this.value)">
+            <div class="row"><!-- danh sách file nằm ở cột Văn bản; select giữ lại (ẩn) cho mã cũ -->
+              <select id="splitDocSelect" class="select hidden" onchange="selectSplitDoc(this.value)">
                 <option value="">- Chưa có tài liệu -</option>
               </select><span class="chip" id="splitInfo">Chưa phân tích</span></div>
             <div class="actions"><button class="btn" onclick="addDocuments('split')"><i data-ic="plus"></i> Thêm tài
                 liệu</button><button class="btn" id="btnSplitTools" disabled onclick="openSplitTools()"><i
                   data-ic="scissors"></i> Cách chia
-                khác</button><button class="btn primary" id="btnAnalyze" disabled onclick="analyzeSplit()">Phân tích tài
+                khác</button><button class="btn hidden" id="btnAnalyzeAll" onclick="openAnalyzeAll()"
+                title="Chọn các tài liệu đang mở để phân tích lần lượt"><i data-ic="layers"></i> <span
+                  id="lblAnalyzeAll">Phân tích tất cả</span></button><button class="btn primary" id="btnAnalyze" disabled onclick="analyzeSplit()">Phân tích tài
                 liệu</button></div>
           </div>
           <div class="splitdesk">
             <div class="pane">
-              <div class="panehead"><span>Văn bản</span><span class="chip" id="countDocs">0</span></div>
+              <div class="panehead"><span>Văn bản</span><span class="row" style="gap:6px"><span class="chip"
+                    id="countDocs">0</span><button class="btn small hidden" id="btnFoldAll" onclick="toggleFoldAll()"
+                    title="Thu gọn tất cả"></button><button class="btn small hidden" id="btnCloseDoc" onclick="openDocManager()"
+                    title="Sửa danh sách tài liệu: thêm hoặc bỏ file"><i data-ic="pen-line"></i></button></span></div>
               <div class="panebody docitems" id="groups">
                 <div class="empty small">Mở tài liệu rồi bấm “Phân tích tài liệu” để tìm các văn bản.</div>
               </div>
@@ -321,7 +327,7 @@
               <div class="whyline" id="splitWhy"></div>
             </div>
             <div class="pane">
-              <div class="panehead"><span>Trang</span><span class="muted small"
+              <div class="panehead"><span id="railTitle">Trang</span><span class="muted small" id="railHint" style="white-space:nowrap;flex-shrink:0"
                   title="Giữ Ctrl hoặc Shift khi bấm để chọn nhiều trang">Kéo để sắp xếp</span></div>
               <div class="newdrop" id="newDocDrop"><i data-ic="file-plus"></i> Thả vào đây để tạo văn bản mới</div>
               <div class="panebody" id="pageStrip"></div>

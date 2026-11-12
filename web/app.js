@@ -6,7 +6,7 @@ const S = {
   ocrDoc: '', ocrUid: '', ocrResult: null, img: null, zoom: 1, showBoxes: false, regionMode: false, quality: 'fast',
   savedRange: null, splitDoc: '', groups: [], scores: {}, sel: new Set(), anchor: null, cur: null,
   selGroup: 0, groupNames: {}, namesByDoc: {}, groupFields: {}, fieldsByDoc: {}, groupSecrecy: {}, secrecyByDoc: {}, pageImgs: new Map(), viewKey: null, splitZoom: 1, dragUids: null, batchFiles: [], batchJob: null, jobs: {}, handled: new Set(), pollVersion: 0,
-  system: null, cancelRequests: new Set(),
+  system: null, cancelRequests: new Set(), splitCount: {}, groupsByDoc: {}, collapsed: new Set(),
 };
 const GROUP_COLORS = ['#2164eb', '#0b9d70', '#f3a933', '#e75b67', '#8b5cf6', '#06b6d4', '#d946ef', '#84cc16'];
 const BLOCK_LABELS = {
@@ -50,8 +50,10 @@ document.addEventListener('DOMContentLoaded', () => renderIcons());
 const TOAST_ICONS = { ok: 'circle-check', warn: 'triangle-alert', info: 'info' };
 function toast(msg, actions = [], ms = 4200, kind = 'info') {
   const el = $('toast');
-  el.innerHTML = ic(TOAST_ICONS[kind] || 'info', 'tic') + esc(msg) + actions.map((a, i) => `<a data-i="${i}">${esc(a.label)}</a>`).join('');
+  el.innerHTML = ic(TOAST_ICONS[kind] || 'info', 'tic') + esc(msg) + actions.map((a, i) => `<a data-i="${i}">${esc(a.label)}</a>`).join('') +
+    `<button class="toastclose" title="Đóng thông báo">${ic('x')}</button>`;
   el.querySelectorAll('a').forEach(a => a.onclick = () => { actions[a.dataset.i].fn(); el.classList.remove('show'); });
+  el.querySelector('.toastclose').onclick = () => { clearTimeout(window.toastTimer); el.classList.remove('show'); };
   el.classList.add('show');
   clearTimeout(window.toastTimer);
   window.toastTimer = setTimeout(() => el.classList.remove('show'), actions.length ? ms + 3000 : ms);
@@ -248,6 +250,10 @@ function onJob(j) {
   if (j.kind === 'batch' && j.id === S.batchJob) renderBatchJob(j);
   if (j.kind === 'ocr' && j.meta.doc_id === S.ocrDoc) setOcrBusy(['running', 'queued', 'paused', 'cancelling'].includes(j.status));
   if (j.kind === 'split' && j.meta.doc_id === S.splitDoc) $('btnAnalyze').disabled = ['running', 'queued', 'paused', 'cancelling'].includes(j.status);
+  if (j.kind === 'split') {
+    if (j.status === 'done' && j.result) S.splitCount[j.meta.doc_id] = (j.result.groups || []).length;
+    renderSplitSelect();
+  }
   if (!['done', 'error', 'cancelled'].includes(j.status) || S.handled.has(j.id)) return;
   S.handled.add(j.id);
   if (j.status === 'error') { toast(`${j.title}: ${j.error}`, [], 6000, 'warn'); return; }
@@ -260,6 +266,13 @@ function onJob(j) {
   }
   if (j.kind === 'split' && j.result && j.result.doc_id === S.splitDoc) {
     toast(j.message); resetGroupNames(); S.selGroup = 0; S.cur = null; loadSplitGroups();
+  } else if (j.kind === 'split' && j.result && S.docs[j.result.doc_id]) {
+    // tài liệu khác trong hàng đợi vừa xong: xóa tên/thông tin cũ, cho phép mở xem ngay
+    const id = j.result.doc_id;
+    S.namesByDoc[id] = {}; S.fieldsByDoc[id] = {}; S.secrecyByDoc[id] = {};
+    fetchDocGroups(id);
+    const left = Object.values(S.jobs).filter(x => x.kind === 'split' && ['running', 'queued', 'paused'].includes(x.status)).length;
+    toast(`${S.docs[id].name}: ${j.message}${left ? ` · còn ${left} tài liệu` : ''}`, [{ label: 'Xem', fn: () => { navigate('split'); selectSplitDoc(id); } }]);
   }
   if (j.kind === 'model') { toast(j.message); if (S.page === 'models') renderModels(); refreshSystem(); }
   if (S.page === 'overview') renderOverview();
@@ -344,7 +357,8 @@ async function openDocs(paths, target) {
     if (!r.docs.length) return;
     if (target === 'split') { navigate('split'); await selectSplitDoc(r.docs[0].id); }
     else { navigate('ocr'); await selectOcrDoc(r.docs[0].id); }
-    if (r.docs.length > 1) toast(`Đã mở ${r.docs.length} tài liệu - chọn ở danh sách phía trên`);
+    if (r.docs.length > 1 && target === 'split') toast(`Đã mở ${r.docs.length} tài liệu`, [{ label: 'Chọn file để phân tích', fn: openAnalyzeAll }], 6000);
+    else if (r.docs.length > 1) toast(`Đã mở ${r.docs.length} tài liệu - chọn ở danh sách phía trên`);
     else if (r.docs[0].pages.some(p => p.ocr)) toast('Đã khôi phục bản nháp OCR đã lưu của tài liệu này');
     $('footerInfo').textContent = `Đã mở ${r.docs.length} tài liệu`;
   } catch (e) { fail(e); }
@@ -353,8 +367,198 @@ function refreshDocSelects() {
   const opts = Object.values(S.docs).map(d => `<option value="${d.id}">${esc(d.name)} · ${d.page_count} trang</option>`).join('');
   const empty = '<option value="">- Chưa có tài liệu -</option>';
   $('ocrDocSelect').innerHTML = opts || empty; $('ocrDocSelect').value = S.ocrDoc;
-  $('splitDocSelect').innerHTML = opts || empty; $('splitDocSelect').value = S.splitDoc;
+  renderSplitSelect();
   renderMergeList();
+}
+// --- phân tích nhiều tài liệu: trạng thái từng tài liệu hiển thị ngay trong danh sách chọn
+function splitJobOf(id) {
+  return Object.values(S.jobs).filter(j => j.kind === 'split' && j.meta.doc_id === id).sort((a, b) => b.id - a.id)[0];
+}
+function splitBusy(id) {
+  const j = splitJobOf(id);
+  return !!j && ['running', 'queued', 'paused', 'cancelling'].includes(j.status);
+}
+function splitStateLabel(id) {
+  const j = splitJobOf(id);
+  if (j && ['running', 'cancelling'].includes(j.status)) return 'Đang phân tích';
+  if (j && ['queued', 'paused'].includes(j.status)) return 'Đang chờ';
+  if (id in S.splitCount) return `Đã phân tích: ${S.splitCount[id]} văn bản`;
+  if (j && j.status === 'error') return 'Lỗi';
+  return '';
+}
+function renderSplitSelect() {
+  const docs = Object.values(S.docs);
+  const opts = docs.map(d => { const st = splitStateLabel(d.id); return `<option value="${d.id}">${esc(d.name)} · ${d.page_count} trang${st ? ' — ' + st : ''}</option>`; }).join('');
+  const sel = $('splitDocSelect');
+  const html = opts || '<option value="">- Chưa có tài liệu -</option>';
+  if (sel.dataset.html !== html) {
+    sel.innerHTML = html; sel.dataset.html = html;
+    if (S.docs[S.splitDoc]) { renderGroups(); renderSplitTotals(); }   // trạng thái từng file trong khung Văn bản
+  }
+  sel.value = S.splitDoc;
+  updateAnalyzeButtons(); updateFoldAll();
+  $('btnCloseDoc').classList.toggle('hidden', !docs.length);
+  if (aaOpen()) renderAnalyzeList();
+  if (dmOpen()) renderDocManager();
+}
+function aaOpen() { return !!$('aaList') && $('modalShade').classList.contains('show'); }
+function dmOpen() { return !!$('dmList') && $('modalShade').classList.contains('show'); }
+// Popup "Danh sách tài liệu": xem các file đang mở, bấm để mở, nút thùng rác để bỏ file mở nhầm
+function openDocManager() {
+  openModal(`<h2>Danh sách tài liệu</h2>
+    <p class="sub">Bấm vào tên để mở tài liệu. Bấm ${ic('trash-2')} để bỏ tài liệu khỏi danh sách - file gốc trên máy không bị xóa.</p>
+    <div id="dmList" style="max-height:360px;overflow:auto;margin-top:12px"></div>
+    <div class="row between mt"><div class="row"><button class="btn" id="dmAdd">${ic('plus')} Thêm tài liệu</button>
+      <button class="btn danger" id="dmClear">${ic('trash-2')} Xóa tất cả</button></div>
+      <button class="btn primary" onclick="closeModal()">Xong</button></div>`, { wide: true });
+  $('dmAdd').onclick = async () => {
+    try {
+      const paths = await call('pick_files', true);
+      if (!paths || !paths.length) return;
+      const r = await call('open_documents', paths);
+      r.docs.forEach(d => { S.docs[d.id] = d; });
+      if (r.errors.length) toast('Không mở được: ' + r.errors.join('; '), [], 7000);
+      refreshDocSelects();
+      if (!S.splitDoc && r.docs.length) selectSplitDoc(r.docs[0].id);
+    } catch (e) { fail(e); }
+  };
+  $('dmClear').onclick = async () => {
+    const ids = Object.keys(S.docs);
+    if (!await confirmBox('Xóa tất cả', `Bỏ cả ${ids.length} tài liệu khỏi danh sách? File gốc trên máy không bị xóa.`, 'Xóa tất cả')) return openDocManager();
+    for (const id of ids) await closeDocument(id, true);
+    toast(`Đã bỏ ${ids.length} tài liệu khỏi danh sách`);
+  };
+  renderDocManager();
+}
+function renderDocManager() {
+  const docs = Object.values(S.docs);
+  if (!docs.length) { $('dmList').innerHTML = '<div class="empty">Chưa có tài liệu nào</div>'; $('dmClear').disabled = true; return; }
+  $('dmClear').disabled = false;
+  $('dmList').innerHTML = docs.map(d => {
+    const busy = splitBusy(d.id), st = splitStateLabel(d.id) || 'Chưa phân tích', cur = d.id === S.splitDoc;
+    const icon = busy ? ic('loader-circle', 'spin') : d.id in S.splitCount ? ic('circle-check') : st === 'Lỗi' ? ic('triangle-alert') : ic('file-text', 'muted');
+    return `<div class="fileitem" style="${cur ? 'border-color:var(--blue,#2164eb)' : ''}">
+      <a class="row dmopen" data-id="${d.id}" style="min-width:0;flex:1;cursor:pointer" title="Mở ${esc(d.name)}">${icon}
+        <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.name)}</span>${cur ? '<span class="chip">Đang xem</span>' : ''}</a>
+      <span class="row" style="flex-shrink:0"><span class="meta">${d.page_count} trang · ${esc(st)}</span>
+        <button class="btn small danger dmdel" data-id="${d.id}" title="Bỏ khỏi danh sách">${ic('trash-2')}</button></span></div>`;
+  }).join('');
+  $('dmList').querySelectorAll('.dmopen').forEach(a => a.onclick = () => { closeModal(); selectSplitDoc(a.dataset.id); });
+  $('dmList').querySelectorAll('.dmdel').forEach(b => b.onclick = () => closeDocument(b.dataset.id));
+}
+// Hộp chọn tài liệu cần phân tích: tick/bỏ tick, bỏ hẳn tài liệu mở nhầm, xem trạng thái từng file
+function openAnalyzeAll(keep) {
+  const docs = Object.values(S.docs);
+  if (!docs.length) return addDocuments('split');
+  if (!keep) S.aaPick = new Set(docs.filter(d => !splitBusy(d.id) && !(d.id in S.splitCount)).map(d => d.id));
+  openModal(`<h2>Phân tích nhiều tài liệu</h2>
+    <p class="sub">Tick các tài liệu cần phân tích. Tài liệu chạy lần lượt; xong file nào có thể mở xem file đó ngay.</p>
+    <div class="row between" style="margin:12px 0 8px"><label class="small"><input type="checkbox" class="check" id="aaAll"> Chọn tất cả</label>
+      <button class="btn small" id="aaAdd">${ic('plus')} Thêm tài liệu</button></div>
+    <div id="aaList" style="max-height:340px;overflow:auto"></div>
+    <div class="row between mt"><span class="small muted" id="aaSum"></span>
+      <div class="row"><button class="btn" onclick="closeModal()">Đóng</button><button class="btn primary" id="aaGo"></button></div></div>`, { wide: true });
+  $('aaAll').onchange = e => {
+    S.aaPick = new Set(e.target.checked ? Object.values(S.docs).filter(d => !splitBusy(d.id)).map(d => d.id) : []);
+    renderAnalyzeList();
+  };
+  $('aaAdd').onclick = async () => {
+    const before = new Set(Object.keys(S.docs));
+    try {
+      const paths = await call('pick_files', true);
+      if (!paths || !paths.length) return;
+      const r = await call('open_documents', paths);
+      r.docs.forEach(d => { S.docs[d.id] = d; if (!before.has(d.id)) S.aaPick.add(d.id); });
+      if (r.errors.length) toast('Không mở được: ' + r.errors.join('; '), [], 7000);
+      refreshDocSelects();
+      if (!S.splitDoc && r.docs.length) selectSplitDoc(r.docs[0].id);
+    } catch (e) { fail(e); }
+  };
+  $('aaGo').onclick = analyzePicked;
+  renderAnalyzeList();
+}
+function renderAnalyzeList() {
+  const docs = Object.values(S.docs);
+  if (!docs.length) { closeModal(); return; }
+  [...S.aaPick].forEach(id => { if (!S.docs[id] || splitBusy(id)) S.aaPick.delete(id); });
+  $('aaList').innerHTML = docs.map(d => {
+    const busy = splitBusy(d.id), st = splitStateLabel(d.id) || 'Chưa phân tích';
+    const icon = busy ? ic('loader-circle', 'spin') : d.id in S.splitCount ? ic('circle-check') : st === 'Lỗi' ? ic('triangle-alert') : ic('file-text', 'muted');
+    return `<div class="fileitem"><label class="row" style="min-width:0;flex:1;cursor:${busy ? 'default' : 'pointer'}">
+        <input type="checkbox" class="check aachk" value="${d.id}" ${S.aaPick.has(d.id) ? 'checked' : ''} ${busy ? 'disabled' : ''}>
+        ${icon}<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(d.name)}">${esc(d.name)}</span></label>
+      <span class="row" style="flex-shrink:0"><span class="meta">${d.page_count} trang · ${esc(st)}</span>
+        <button class="btn small danger aadel" data-id="${d.id}" title="Bỏ tài liệu này khỏi danh sách (file gốc không bị xóa)">${ic('trash-2')}</button></span></div>`;
+  }).join('');
+  $('aaList').querySelectorAll('.aachk').forEach(c => c.onchange = () => { c.checked ? S.aaPick.add(c.value) : S.aaPick.delete(c.value); renderAnalyzeList(); });
+  $('aaList').querySelectorAll('.aadel').forEach(b => b.onclick = () => closeDocument(b.dataset.id));
+  const picked = docs.filter(d => S.aaPick.has(d.id)), free = docs.filter(d => !splitBusy(d.id));
+  const pages = picked.reduce((n, d) => n + d.page_count, 0);
+  const again = picked.filter(d => d.id in S.splitCount).length;
+  $('aaAll').checked = free.length > 0 && picked.length === free.length;
+  $('aaSum').textContent = `Đã chọn ${picked.length}/${docs.length} tài liệu · ${pages} trang${again ? ` · ${again} tài liệu sẽ phân tích lại` : ''}`;
+  $('aaGo').disabled = !picked.length;
+  $('aaGo').innerHTML = `${ic('layers')} Phân tích ${picked.length} tài liệu`;
+}
+async function analyzePicked() {
+  const todo = Object.values(S.docs).filter(d => S.aaPick.has(d.id) && !splitBusy(d.id));
+  if (!todo.length) return;
+  const again = todo.filter(d => d.id in S.splitCount).length;
+  if (again && !await confirmBox('Phân tích lại', `${again} tài liệu đã được phân tích. Phân tích lại sẽ thay thế các điểm tách và tên đã chỉnh. Tiếp tục?`, 'Phân tích')) return openAnalyzeAll(true);
+  closeModal();
+  let n = 0;
+  for (const d of todo) {
+    try { await call('split_analyze', d.id); n++; } catch (e) { fail(e); }
+  }
+  if (todo.some(d => d.id === S.splitDoc)) $('btnAnalyze').disabled = true;
+  await poll();
+  renderSplitSelect();
+  if (n) toast(`Đã xếp hàng phân tích ${n} tài liệu - chạy lần lượt, xong file nào có thể xem file đó trước`);
+}
+// Bỏ một tài liệu khỏi danh sách đang làm việc (hủy phân tích nếu đang chạy). File gốc không bị đụng tới.
+async function closeDocument(id, quiet = false) {
+  const doc = S.docs[id];
+  if (!doc) return;
+  const j = splitJobOf(id), busy = splitBusy(id);
+  const ocrJob = Object.values(S.jobs).find(x => x.kind === 'ocr' && x.meta.doc_id === id && ['running', 'queued', 'paused'].includes(x.status));
+  const msg = busy || ocrJob ? `Tài liệu đang được xử lý, sẽ hủy tác vụ và bỏ khỏi danh sách.` : `Bỏ "${doc.name}" khỏi danh sách? File gốc không bị xóa, có thể thêm lại bất cứ lúc nào.`;
+  if (!quiet && !aaOpen() && !dmOpen() && !await confirmBox('Bỏ tài liệu', msg, 'Bỏ khỏi danh sách')) return;
+  try {
+    if (busy) await call('job_cancel', j.id);
+    if (ocrJob) await call('job_cancel', ocrJob.id);
+    await call('close_document', id);
+  } catch (e) { return fail(e); }
+  S.collapsed.delete(id);
+  delete S.docs[id]; delete S.thumbs[id]; delete S.splitCount[id]; delete S.groupsByDoc[id];
+  delete S.namesByDoc[id]; delete S.fieldsByDoc[id]; delete S.secrecyByDoc[id];
+  if (S.aaPick) S.aaPick.delete(id);
+  [...S.pageImgs.keys()].forEach(k => { if (k.startsWith(id + ':')) S.pageImgs.delete(k); });
+  const next = Object.keys(S.docs)[0] || '';
+  if (S.ocrDoc === id) { S.ocrDoc = ''; S.ocrUid = ''; if (next) selectOcrDoc(next); else clearOcrView(); }
+  if (S.splitDoc === id) { S.splitDoc = ''; if (next) await selectSplitDoc(next); else clearSplitView(); }
+  refreshDocSelects();
+  if (!quiet) toast(`Đã bỏ ${doc.name} khỏi danh sách`);
+}
+function clearSplitView() {
+  S.groups = []; S.scores = {}; S.sel = new Set(); S.cur = null; S.selGroup = 0; S.viewKey = null;
+  $('pageStrip').innerHTML = '';
+  $('groups').innerHTML = '<div class="empty small">Mở tài liệu rồi bấm “Phân tích tài liệu” để tìm các văn bản.</div>';
+  $('countDocs').textContent = '0';
+  $('splitInfo').textContent = 'Chưa phân tích';
+  $('splitWhy').textContent = '';
+  ['splitNameBar', 'splitViewBar', 'splitWrap', 'splitText'].forEach(x => $(x).classList.add('hidden'));
+  $('splitEmpty').classList.remove('hidden');
+  ['btnSplitTools', 'btnExportGroups', 'btnAnalyze'].forEach(x => $(x).disabled = true);
+  $('btnExportGroups').innerHTML = `${ic('download')} Xuất văn bản`;
+  updateAnalyzeButtons();
+}
+function clearOcrView() {
+  S.ocrResult = null; S.img = null;
+  $('ocrThumbs').innerHTML = '<div class="empty">Chưa có tài liệu</div>';
+  $('ocrPageCount').textContent = '0'; $('pageIndicator').textContent = '-';
+  $('viewer').innerHTML = '<div class="empty" style="margin-top:80px">Thêm tài liệu PDF hoặc ảnh để bắt đầu</div>';
+  $('editor').innerHTML = '<div class="empty">Kết quả OCR sẽ hiển thị tại đây.</div>';
+  $('ocrResultStatus').textContent = 'Chưa nhận dạng'; $('resultChip').textContent = '';
 }
 async function loadThumbs(docId, uids) {
   const list = await call('thumbnails', docId, uids || null);
@@ -703,6 +907,8 @@ async function selectSplitDoc(id) {
   if (!id) return;
   S.splitDoc = id; $('splitDocSelect').value = id;
   S.sel = new Set(); S.cur = null; S.selGroup = 0; S.viewKey = null;
+  S.groups = S.groupsByDoc[id] || [];
+  S.collapsed.delete(id);   // file đang mở luôn được mở rộng
   S.groupNames = S.namesByDoc[id] = S.namesByDoc[id] || {};
   S.groupFields = S.fieldsByDoc[id] = S.fieldsByDoc[id] || {};
   S.groupSecrecy = S.secrecyByDoc[id] = S.secrecyByDoc[id] || {};
@@ -747,12 +953,19 @@ function renderSplit() {
   }
   const gi = groupIndexOf(S.cur);
   S.selGroup = gi >= 0 ? gi : Math.max(0, Math.min(S.selGroup, S.groups.length - 1));
+  S.groupsByDoc[S.splitDoc] = S.groups;
+  const rt = $('railTitle');
+  rt.textContent = `Trang · ${doc.name}`;
+  rt.title = `${doc.name}
+Kéo trang để sắp xếp; giữ Ctrl hoặc Shift để chọn nhiều trang`;
+  rt.style.cssText = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+  $('railHint').classList.add('hidden');   // nhường chỗ cho tên file, gợi ý nằm trong tooltip
   renderPageRail(doc);
   renderGroups();
   renderSelected();
   showSplitPage();
-  $('countDocs').textContent = S.groups.length;
-  $('btnExportGroups').innerHTML = `${ic('download')} Xuất văn bản${S.groups.length ? ` (${S.groups.length})` : ''}`;
+  renderSplitTotals();
+  updateAnalyzeButtons();
   $('splitInfo').textContent = S.groups.length ? `${S.groups.length} văn bản · ${S.groups.filter(g => g.confidence < thr).length} điểm tách cần kiểm tra` : `${doc.pages.length} trang · chưa phân tích`;
 }
 function renderPageRail(doc) {
@@ -813,16 +1026,77 @@ function stepPage(d) {
   const next = doc.pages[doc.pages.findIndex(p => p.uid === S.cur) + d];
   if (next) selectPage(next.uid);
 }
-function renderGroups() {
+function groupCardHtml(g, i, pages, chosen, docId) {
   const thr = S.settings.split_threshold || 70;
-  const pages = S.docs[S.splitDoc].pages.map(p => p.uid);
-  if (!S.groups.length) { $('groups').innerHTML = '<div class="empty small">Bấm “Phân tích tài liệu” để tự tìm các văn bản, hoặc chọn một trang rồi bấm “Tách từ trang này”.</div>'; return; }
-  $('groups').innerHTML = S.groups.map((g, i) => {
-    const a = pages.indexOf(g.uids[0]) + 1, b = pages.indexOf(g.uids[g.uids.length - 1]) + 1;
-    const cc = g.confidence < thr ? 'low' : g.confidence < 90 ? 'mid' : '';
-    return `<div class="docgroup ${S.selGroup === i ? 'chosen' : ''} ${g.confidence < thr ? 'low' : ''}" data-i="${i}"><div class="row between"><strong style="font-size:12px"><span class="gdot" style="background:${GROUP_COLORS[i % GROUP_COLORS.length]}"></span><span class="gname">${esc(g.name)}</span></strong>${g.reasons.length ? `<span class="confidence ${cc}">${g.confidence}%</span>` : ''}</div><div class="muted small" style="margin:7px 0 0 15px">Trang ${a}–${b} · ${g.uids.length} trang${g.type ? ' · ' + esc(g.type) : ''}${g.agency && g.agency !== 'Khác' ? ' · ' + esc(g.agency) : ''}</div></div>`;
+  const a = pages.indexOf(g.uids[0]) + 1, b = pages.indexOf(g.uids[g.uids.length - 1]) + 1;
+  const cc = g.confidence < thr ? 'low' : g.confidence < 90 ? 'mid' : '';
+  return `<div class="docgroup ${chosen ? 'chosen' : ''} ${g.confidence < thr ? 'low' : ''}" data-i="${i}"${docId ? ` data-doc="${docId}"` : ''}><div class="row between"><strong style="font-size:12px"><span class="gdot" style="background:${GROUP_COLORS[i % GROUP_COLORS.length]}"></span><span class="gname">${esc(g.name)}</span></strong>${(g.reasons || []).length ? `<span class="confidence ${cc}">${g.confidence}%</span>` : ''}</div><div class="muted small" style="margin:7px 0 0 15px">Trang ${a}–${b} · ${g.uids.length} trang${g.type ? ' · ' + esc(g.type) : ''}${g.agency && g.agency !== 'Khác' ? ' · ' + esc(g.agency) : ''}</div></div>`;
+}
+// Khi mở nhiều tài liệu: khung Văn bản chia theo từng file, file đang xem có thể chỉnh sửa, file khác bấm để chuyển sang
+function renderFileGroups() {
+  const docs = Object.values(S.docs);
+  $('groups').innerHTML = docs.map(d => {
+    const cur = d.id === S.splitDoc, groups = cur ? S.groups : (S.groupsByDoc[d.id] || []);
+    const pages = d.pages.map(p => p.uid), busy = splitBusy(d.id), st = splitStateLabel(d.id);
+    const icon = busy ? ic('loader-circle', 'spin') : groups.length ? ic('circle-check') : st === 'Lỗi' ? ic('triangle-alert') : ic('file-text');
+    const meta = busy ? st : groups.length ? `${groups.length} văn bản` : 'Chưa phân tích';
+    const open = !S.collapsed.has(d.id);
+    const body = !open ? ''
+      : groups.length ? `<div class="filegroups">${groups.map((g, i) => groupCardHtml(g, i, pages, cur && S.selGroup === i, cur ? '' : d.id)).join('')}</div>`
+      : `<div class="filegroups"><div class="filenote">${busy ? 'Đang tìm các văn bản trong file…' : `${d.page_count} trang · chưa phân tích <button class="btn small" data-an="${d.id}" style="margin-left:6px">${ic('sparkles')} Phân tích file này</button>`}</div></div>`;
+    return `<div class="filehead ${cur ? 'cur' : ''}" data-doc="${d.id}" title="${cur ? 'Đang xem' : 'Bấm để mở'}: ${esc(d.name)}"><button class="fold" data-fold="${d.id}" title="${open ? 'Thu gọn' : 'Mở rộng'}">${ic(open ? 'chevron-down' : 'chevron-right')}</button>${icon}<span class="fname">${esc(d.name)}</span><span class="fmeta">${esc(meta)}</span></div>${body}`;
   }).join('');
-  $('groups').querySelectorAll('.docgroup').forEach(el => {
+  $('groups').querySelectorAll('[data-fold]').forEach(b => b.onclick = e => { e.stopPropagation(); const id = b.dataset.fold; S.collapsed.has(id) ? S.collapsed.delete(id) : S.collapsed.add(id); renderGroups(); updateFoldAll(); });
+  updateFoldAll();
+  $('groups').querySelectorAll('[data-an]').forEach(b => b.onclick = e => { e.stopPropagation(); analyzeDoc(b.dataset.an); });
+  $('groups').querySelectorAll('.filehead').forEach(el => el.onclick = () => { if (el.dataset.doc !== S.splitDoc) selectSplitDoc(el.dataset.doc); });
+  $('groups').querySelectorAll('.docgroup[data-doc]').forEach(el => el.onclick = async () => {
+    await selectSplitDoc(el.dataset.doc);
+    const g = S.groups[+el.dataset.i];
+    if (g) { S.selGroup = +el.dataset.i; S.cur = g.start_uid; S.sel = new Set([S.cur]); renderSplit(); }
+  });
+}
+// Nút "Thu gọn tất cả / Mở rộng tất cả" ở đầu cột Văn bản (chỉ khi mở nhiều file)
+function updateFoldAll() {
+  const ids = Object.keys(S.docs), anyOpen = ids.some(id => !S.collapsed.has(id)), b = $('btnFoldAll');
+  b.classList.toggle('hidden', ids.length < 2);
+  b.innerHTML = ic(anyOpen ? 'chevrons-down-up' : 'chevrons-up-down');
+  b.title = anyOpen ? 'Thu gọn tất cả' : 'Mở rộng tất cả';
+}
+function toggleFoldAll() {
+  const ids = Object.keys(S.docs);
+  S.collapsed = ids.some(id => !S.collapsed.has(id)) ? new Set(ids) : new Set();
+  renderGroups(); updateFoldAll();
+}
+function multiFile() { return Object.keys(S.docs).length > 1; }
+function docsWithGroups() { return Object.values(S.docs).filter(d => (S.groupsByDoc[d.id] || []).length); }
+function renderSplitTotals() {
+  const done = docsWithGroups(), total = done.reduce((n, d) => n + S.groupsByDoc[d.id].length, 0);
+  const all = multiFile() && done.length > 0;   // nhiều file: luôn xuất chung 1 thư mục; "Xuất riêng" dùng cho từng văn bản
+  $('countDocs').textContent = multiFile() ? total : S.groups.length;
+  $('countDocs').title = multiFile() ? `Tổng ${total} văn bản từ ${done.length}/${Object.keys(S.docs).length} tài liệu` : '';
+  $('btnExportGroups').innerHTML = all ? `${ic('download')} Xuất tất cả (${total} văn bản · ${done.length} file)`
+    : `${ic('download')} Xuất văn bản${S.groups.length ? ` (${S.groups.length})` : ''}`;
+  $('btnExportGroups').onclick = all ? previewAllExport : () => previewGroupExport();
+}
+// Tải kết quả tách của tài liệu khác (không phải file đang xem) để hiện trong khung Văn bản
+async function fetchDocGroups(id) {
+  try {
+    const r = await call('split_groups', id);
+    if (!S.docs[id]) return;
+    const names = S.namesByDoc[id] || {};
+    (r.groups || []).forEach(g => { if (names[g.start_uid]) g.name = names[g.start_uid]; });
+    S.groupsByDoc[id] = r.groups || [];
+    S.docs[id].pages = r.pages; S.docs[id].page_count = r.pages.length;
+    if (id !== S.splitDoc && S.docs[S.splitDoc]) { renderGroups(); renderSplitTotals(); }
+  } catch (e) { fail(e); }
+}
+function renderGroups() {
+  const pages = S.docs[S.splitDoc].pages.map(p => p.uid);
+  if (Object.keys(S.docs).length) renderFileGroups();   // danh sách file luôn ở cột Văn bản (thay dropdown)
+  else if (!S.groups.length) { $('groups').innerHTML = '<div class="empty small">Bấm “Phân tích tài liệu” để tự tìm các văn bản, hoặc chọn một trang rồi bấm “Tách từ trang này”.</div>'; return; }
+  else $('groups').innerHTML = S.groups.map((g, i) => groupCardHtml(g, i, pages, S.selGroup === i)).join('');
+  $('groups').querySelectorAll('.docgroup:not([data-doc])').forEach(el => {
     const g = S.groups[+el.dataset.i];
     el.onclick = () => { S.selGroup = +el.dataset.i; S.cur = g.start_uid; S.sel = new Set([S.cur]); renderSplit(); };
     // Thả trang lên một văn bản: chuyển trang về cuối văn bản đó
@@ -1050,8 +1324,9 @@ async function isolatePages(picked = selectedOrCurrent()) {
     toast(`Đã tách ${uids.length} trang thành văn bản riêng`);
   } catch (e) { fail(e); }
 }
-function groupFields(g) {
-  if (S.groupFields[g.start_uid]) return S.groupFields[g.start_uid];
+function groupFields(g, docId) {
+  const own = docId ? (S.fieldsByDoc[docId] || {}) : S.groupFields;
+  if (own[g.start_uid]) return own[g.start_uid];
   if (g.fields) return g.fields;   // từ backend: so = chỉ số văn bản
   const m = g.meta || {};
   return { loai: m.loai_van_ban || '', coquan: m.co_quan_viet_tat || '', so: (m.so_ky_hieu || '').replace(/\/.*$/, '').trim(), ngay: m.ngay_ban_hanh || '', trichyeu: m.trich_yeu || '' };
@@ -1092,9 +1367,38 @@ function restoreAutoName() {
   g.name = g.auto_name; $('groupRename').value = g.name;
   renderSplit();
 }
-async function analyzeSplit() {
-  try { await call('split_analyze', S.splitDoc); $('btnAnalyze').disabled = true; toast('Đang nhận dạng và tìm điểm tách tài liệu'); } catch (e) { fail(e); }
+function isAnalyzed(id) { return id in S.splitCount || (S.groupsByDoc[id] || []).length > 0; }
+// Chỉ 1 nút chính (xanh) = bước nên làm tiếp theo; nhãn nút đổi theo trạng thái
+function updateAnalyzeButtons() {
+  const docs = Object.values(S.docs), id = S.splitDoc, multi = docs.length > 1;
+  const running = docs.filter(d => splitBusy(d.id)).length;
+  const pending = docs.filter(d => !splitBusy(d.id) && !isAnalyzed(d.id)).length;
+  const one = $('btnAnalyze'), all = $('btnAnalyzeAll');
+  // Nút "Phân tích tất cả": chỉ khi mở nhiều file; xanh khi còn file chưa phân tích
+  all.classList.toggle('hidden', !multi);
+  all.classList.toggle('primary', multi && pending > 0);
+  all.disabled = multi && !pending && running > 0;
+  $('lblAnalyzeAll').textContent = pending ? `Phân tích tất cả (${pending} file)` : running ? `Đang phân tích ${running} file…` : 'Phân tích lại nhiều file';
+  all.title = pending ? `Còn ${pending} file chưa phân tích - chạy lần lượt` : running ? 'Các file đang chạy lần lượt, xem tiến độ ở cột Văn bản' : 'Tất cả đã phân tích. Bấm để chọn file cần phân tích lại';
+  // Nút cho file đang xem
+  const busy = id && splitBusy(id), done = id && isAnalyzed(id);
+  // Nhiều file: ẩn nút này - phân tích từng file bằng nút trong cột Văn bản, phân tích lại qua "Phân tích lại nhiều file"
+  one.classList.toggle('hidden', multi);
+  one.disabled = !id || !!busy;
+  one.classList.toggle('primary', !!id && !busy && !done);
+  one.innerHTML = busy ? `${ic('loader-circle', 'spin')} Đang phân tích…` : done ? `${ic('refresh-cw')} Phân tích lại` : multi ? 'Phân tích file này' : 'Phân tích tài liệu';
+  one.title = busy ? 'File đang được phân tích' : done ? 'Phân tích lại file đang xem (thay kết quả hiện tại)' : 'Tìm các văn bản trong file đang xem';
 }
+async function analyzeDoc(id) {
+  if (!id || splitBusy(id)) return;
+  if (isAnalyzed(id) && !await confirmBox('Phân tích lại', 'File này đã được phân tích. Phân tích lại sẽ thay thế các điểm tách và tên đã chỉnh. Tiếp tục?', 'Phân tích lại')) return;
+  try {
+    await call('split_analyze', id);
+    toast('Đang nhận dạng và tìm điểm tách tài liệu');
+    await poll(); updateAnalyzeButtons();
+  } catch (e) { fail(e); }
+}
+function analyzeSplit() { return analyzeDoc(S.splitDoc); }
 function selectedOrCurrent() { return S.sel.size ? [...S.sel] : (S.cur ? [S.cur] : []); }
 async function rotatePages(deg) {
   const uids = selectedOrCurrent();
@@ -1182,14 +1486,15 @@ async function mergeDocs() {
   } catch (e) { fail(e); }
 }
 // Một dòng trong sổ danh mục Excel. Số tờ (to_so) để backend tự tính theo cài đặt (số trang/tờ, đếm trang trắng)
-function registerInfo(g) {
-  const f = groupFields(g), m = g.meta || {};
+function registerInfo(g, docId) {
+  const f = groupFields(g, docId), m = g.meta || {};
+  const secrecy = docId ? (S.secrecyByDoc[docId] || {}) : S.groupSecrecy;
   return {
     so_ky_hieu: m.so_ky_hieu || f.so || '',
     ngay: f.ngay || m.ngay_ban_hanh || '',
     co_quan: m.co_quan || f.coquan || '',
     trich_yeu: f.trichyeu || m.trich_yeu || '',
-    do_mat: S.groupSecrecy[g.start_uid] || g.do_mat || '',
+    do_mat: secrecy[g.start_uid] || g.do_mat || '',
   };
 }
 function previewGroupExport(only) {
@@ -1224,6 +1529,57 @@ function previewGroupExport(only) {
       const r = await call('export_groups', S.splitDoc, payload, fmt, cls, null);
       closeModal();
       toast(`Đã xuất ${r.outputs.length} văn bản${r.register ? ' + 1 danh mục Excel' : ''}`, [{ label: 'Mở thư mục', fn: () => call('open_path', r.folder) }]);
+    } catch (e) { closeModal(); fail(e); }
+  };
+}
+// Xuất văn bản của nhiều tài liệu một lần: danh sách chia theo file, mỗi file ra 1 thư mục riêng + 1 Excel danh mục
+function previewAllExport() {
+  const docs = docsWithGroups();
+  const picked = new Map(docs.map(d => [d.id, new Set(S.groupsByDoc[d.id])]));
+  openModal(`<h2>Xuất văn bản của ${docs.length} tài liệu</h2><p class="sub">Tất cả văn bản được xuất chung vào 1 thư mục, kèm 1 file Excel danh mục cho cả lượt xuất. Bỏ tích file hoặc văn bản không cần xuất.</p>
+    <div class="grid cols2 mt"><div><label class="fieldlabel">Định dạng</label><select class="select w100" id="groupFormat"><option value="pdf">PDF</option><option value="searchable_pdf">PDF có lớp chữ (Searchable)</option><option value="docx">Word DOCX</option><option value="txt">TXT</option></select></div>
+    <div><label class="fieldlabel">Thư mục con</label><select class="select w100" id="classifyBy"><option value="none">Không tạo</option><option value="type">Theo loại văn bản</option><option value="agency">Theo cơ quan ban hành</option></select></div></div>
+    <div class="row mt" style="flex-wrap:wrap;gap:8px"><label class="small" style="white-space:nowrap" title="Gom toàn bộ file của lượt xuất này vào 1 thư mục mới bên trong thư mục kết quả"><input type="checkbox" class="check" id="gxOwn"> Tạo thư mục riêng cho lượt xuất</label>
+      <input class="input" id="gxOwnName" style="flex:1;min-width:220px" placeholder="Tên thư mục"></div>
+    <div class="mutedbox" id="gxList" style="margin:13px 0;max-height:340px;overflow:auto"></div>
+    <div class="row between"><span class="small muted" id="gxSum"></span><div class="row"><button class="btn" onclick="closeModal()">Hủy</button><button class="btn primary" id="gxGo"></button></div></div>`, { wide: true });
+  const count = () => [...picked.values()].reduce((n, set) => n + set.size, 0);
+  const drawList = () => {
+    const ext = { pdf: '.pdf', searchable_pdf: '.pdf', docx: '.docx', txt: '.txt' }[$('groupFormat').value];
+    $('gxList').innerHTML = docs.map(d => {
+      const groups = S.groupsByDoc[d.id], set = picked.get(d.id), pages = d.pages.map(p => p.uid);
+      return `<label class="gxrow" style="font-weight:600;margin-top:6px"><input type="checkbox" class="check gxfile" data-doc="${d.id}" ${set.size === groups.length ? 'checked' : ''}>${ic('file-text')}<span>${esc(d.name)} <span class="muted">(${set.size}/${groups.length} văn bản)</span></span></label>` +
+        groups.map((g, i) => `<label class="gxrow" style="padding-left:26px"><input type="checkbox" class="check gxone" data-doc="${d.id}" data-i="${i}" ${set.has(g) ? 'checked' : ''}><span>${esc((g.name || 'Van_ban') + ext)} <span class="muted">(trang ${pages.indexOf(g.uids[0]) + 1}–${pages.indexOf(g.uids[g.uids.length - 1]) + 1})</span></span></label>`).join('');
+    }).join('');
+    $('gxList').querySelectorAll('.gxfile').forEach(c => c.onchange = () => { picked.set(c.dataset.doc, new Set(c.checked ? S.groupsByDoc[c.dataset.doc] : [])); drawList(); });
+    $('gxList').querySelectorAll('.gxone').forEach(c => c.onchange = () => { const g = S.groupsByDoc[c.dataset.doc][+c.dataset.i], set = picked.get(c.dataset.doc); c.checked ? set.add(g) : set.delete(g); drawList(); });
+    const n = count(), files = [...picked.values()].filter(x => x.size).length;
+    $('gxSum').textContent = `${n} văn bản từ ${files} tài liệu`;
+    $('gxGo').innerHTML = `${ic('download')} Xuất ${n} văn bản`;
+    $('gxGo').disabled = !n;
+  };
+  $('groupFormat').onchange = drawList;
+  // Thư mục riêng cho lượt xuất: nhớ lựa chọn lần trước, tên mặc định theo ngày giờ
+  const now = new Date(), p2 = n => String(n).padStart(2, '0');
+  $('gxOwnName').value = `Xuat_van_ban_${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())}_${p2(now.getHours())}${p2(now.getMinutes())}`;
+  try { $('gxOwn').checked = localStorage.getItem('offlineocr.exportOwnFolder') === '1'; } catch (_) { }
+  const syncOwn = () => { $('gxOwnName').disabled = !$('gxOwn').checked; };
+  $('gxOwn').onchange = () => { syncOwn(); try { localStorage.setItem('offlineocr.exportOwnFolder', $('gxOwn').checked ? '1' : '0'); } catch (_) { } };
+  syncOwn();
+  drawList();
+  $('gxGo').onclick = async () => {
+    const fmt = $('groupFormat').value, cls = $('classifyBy').value;
+    const sub = $('gxOwn').checked ? $('gxOwnName').value.trim() : '';
+    if ($('gxOwn').checked && !sub) return toast('Nhập tên thư mục hoặc bỏ tick "Tạo thư mục riêng"', [], 3500, 'warn');
+    const items = docs.filter(d => picked.get(d.id).size).map(d => ({
+      doc_id: d.id,
+      groups: S.groupsByDoc[d.id].filter(g => picked.get(d.id).has(g)).map(g => ({ ...g, info: registerInfo(g, d.id) })),
+    }));
+    $('gxGo').disabled = true; $('gxGo').textContent = 'Đang xuất…';
+    try {
+      const r = await call('export_groups_multi', items, fmt, cls, sub || null);
+      closeModal();
+      toast(`Đã xuất ${r.outputs.length} văn bản từ ${r.files} tài liệu ${sub ? ` vào thư mục ${sub}` : ''}${r.register ? ' + 1 danh mục Excel' : ''}`, [{ label: 'Mở thư mục', fn: () => call('open_path', r.folder) }]);
     } catch (e) { closeModal(); fail(e); }
   };
 }
