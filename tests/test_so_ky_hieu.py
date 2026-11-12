@@ -49,8 +49,8 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(metadata.build_so_ky_hieu(f), "2420/QĐ-CAT-PX01")
 
     def test_custom_rule(self):
-        f = {**fields_of("Số: 2420/QĐ-CAT-PX01"), "coquan": "CALĐ"}
-        self.assertEqual(metadata.build_so_ky_hieu(f, "{so}/{loai}-{coquan}"), "2420/QĐ-CALĐ")
+        f = {**fields_of("Số: 2420/QĐ-CAT-PX01"), "coquan": "CATLĐ"}
+        self.assertEqual(metadata.build_so_ky_hieu(f, "{so}/{loai}-{coquan}"), "2420/QĐ-CATLĐ")
 
     def test_filename_is_not_affected(self):
         f = fields_of("Số: 2420/QĐ-CAT-PX01")

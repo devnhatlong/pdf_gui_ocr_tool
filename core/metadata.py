@@ -396,7 +396,7 @@ DEFAULT_AGENCY_MAP = [
     {"ten": "Ủy ban nhân dân", "tat": "UBND"},
     {"ten": "Hội đồng nhân dân", "tat": "HĐND"},
     {"ten": "Công an tỉnh", "tat": "CAT"},
-    {"ten": "Công an tỉnh Lâm Đồng", "tat": "CALĐ"},   # tên dài hơn được ưu tiên hơn "Công an tỉnh"
+    {"ten": "Công an tỉnh Lâm Đồng", "tat": "CATLĐ"},   # tên dài hơn được ưu tiên hơn "Công an tỉnh"
     {"ten": "Công an thành phố", "tat": "CATP"},
     {"ten": "Công an huyện", "tat": "CAH"},
     {"ten": "Công an xã", "tat": "CAX"},
@@ -578,7 +578,66 @@ def extract_metadata(text, type_map=None, agency_map=None):
     if loai:
         meta["loai_van_ban"] = loai
     meta["co_quan"], meta["co_quan_viet_tat"] = detect_agency(text, agency_map)
+    meta["nguoi"] = extract_person(text) if _is_decision(text, meta) else ""
     return meta
+
+
+# ---- Tên người trong Quyết định (thêm vào cuối trích yếu) ----
+_SURNAMES = {remove_accents(s) for s in (
+    "Nguyễn Trần Lê Phạm Hoàng Huỳnh Phan Vũ Võ Đặng Bùi Đỗ Hồ Ngô Dương Lý Đinh Đào Đoàn Trương Lâm Mai "
+    "Trịnh Cao Lưu Hà Tạ Tô Thái Châu Quách Kiều Triệu Từ Văn Lương Hứa Vương Chu Khổng Mạc Tăng Phùng Thân "
+    "Nông Lò Quàng Ksor Rơ Nay Siu Y H Ka K").split()}
+# Cấp bậc / chức danh có thể đứng giữa "đồng chí" và tên: "đồng chí Thượng úy Bùi Mạnh Cường"
+_RANKS = tuple(remove_accents(r) + " " for r in (
+    "Đại tướng", "Thượng tướng", "Trung tướng", "Thiếu tướng", "Đại tá", "Thượng tá", "Trung tá", "Thiếu tá",
+    "Đại úy", "Thượng úy", "Trung úy", "Thiếu úy", "Thượng sĩ", "Trung sĩ", "Hạ sĩ", "Binh nhất", "Binh nhì"))
+_PERSON_CUE = re.compile(r"(?:đồng\s*chí|đ\s*/\s*c|ông|bà)\s*[:.]?\s+", re.I)
+
+
+def _is_decision(text, meta):
+    if (meta.get("loai_van_ban") or "").upper() == "QĐ":
+        return True
+    return any(remove_accents(ln).strip() == "quyet dinh" for ln in text.splitlines()[:25])
+
+
+def _name_after(rest):
+    """Họ tên ngay sau từ gợi ý: bỏ cấp bậc phía trước, lấy 2-5 chữ viết hoa đầu, họ phải là họ Việt phổ biến."""
+    plain = remove_accents(rest)
+    for rank in _RANKS:
+        if plain.startswith(rank):
+            rest = rest[len(rank):]
+            break
+    words = []
+    for w in rest.split():
+        word = w.strip(",.;:()\"'“”")
+        if not word or not word[0].isupper() or not word.isalpha():
+            break
+        words.append(word[:1] + word[1:].lower() if word.isupper() else word)   # BÙI MẠNH CƯỜNG -> Bùi Mạnh Cường
+        if w[-1] in ",.;:)" or len(words) == 5:   # dừng sau dấu câu (", sinh năm...") hoặc đủ 5 chữ
+            break
+    if len(words) < 2 or remove_accents(words[0]) not in _SURNAMES:
+        return ""
+    return " ".join(words)
+
+
+def extract_person(text):
+    """Tên người nêu trong Điều 1 của Quyết định ("... đối với đồng chí Bùi Mạnh Cường, ...").
+    Chỉ trả về khi có đúng 1 người; không có / nhiều người -> "" (người dùng tự gõ nếu cần)."""
+    lines = text.splitlines()
+    start = next((i for i, ln in enumerate(lines) if re.match(r"\s*dieu\s*1\b", remove_accents(ln))), None)
+    if start is None:
+        return ""
+    block = []
+    for ln in lines[start:start + 15]:
+        if block and re.match(r"\s*dieu\s*[2-9]\b", remove_accents(ln)):
+            break
+        block.append(ln)
+    names = []
+    for m in _PERSON_CUE.finditer(" ".join(block)):
+        name = _name_after(" ".join(block)[m.end():])
+        if name and remove_accents(name) not in {remove_accents(n) for n in names}:
+            names.append(name)
+    return names[0] if len(names) == 1 else ""
 
 
 def _summary_part(trich_yeu):
@@ -622,7 +681,7 @@ def so_number(value):
 def build_filename(fields, rule="{so}_{ngay}_{trichyeu}", ext=".pdf", slash="", ascii_name=False):
     """fields: loai, coquan, so, ngay (dd/mm/yyyy), trichyeu. Phần rỗng được bỏ cùng dấu nối.
     slash: chuỗi người dùng chọn thay cho dấu / (không dùng được trong tên file): 123/BC-CAT -> 123-BC-CAT.
-    ascii_name: chỉ trích yếu không dấu, viết liền (VeViecBoNhiem); cơ quan, loại, số giữ nguyên dấu (CALĐ, QĐ)."""
+    ascii_name: chỉ trích yếu không dấu, viết liền (VeViecBoNhiem); cơ quan, loại, số giữ nguyên dấu (CATLĐ, QĐ)."""
     values = {
         "loai": (fields.get("loai") or "").strip(),
         "coquan": (fields.get("coquan") or "").strip(),
@@ -692,4 +751,13 @@ def build_so_ky_hieu(fields, rule=DEFAULT_SO_KY_HIEU_RULE):
 def meta_to_fields(meta):
     return {"loai": meta.get("loai_van_ban", ""), "coquan": meta.get("co_quan_viet_tat", ""),
             "so": so_number(meta.get("so_ky_hieu", "")), "ngay": meta.get("ngay_ban_hanh", ""),
-            "trichyeu": meta.get("trich_yeu", ""), **split_so_ky_hieu(meta.get("so_ky_hieu", ""))}
+            "trichyeu": with_person(meta.get("trich_yeu", ""), meta.get("nguoi", "")),
+            **split_so_ky_hieu(meta.get("so_ky_hieu", ""))}
+
+
+def with_person(trich_yeu, nguoi):
+    """Trích yếu + tên người ở cuối: "Về việc bổ nhiệm chức danh Trinh sát viên sơ cấp Bùi Mạnh Cường"."""
+    summary = _summary_part(re.sub(r"\s+", " ", trich_yeu or "").strip())   # chuẩn hóa chữ hoa trước khi nối tên
+    if not nguoi or remove_accents(nguoi) in remove_accents(summary):
+        return summary
+    return f"{summary} {nguoi}".strip()

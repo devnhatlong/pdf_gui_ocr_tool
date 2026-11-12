@@ -130,7 +130,8 @@
       "Bash(PYTHONIOENCODING=utf-8 .venv/Scripts/python.exe -m unittest tests.test_so_ky_hieu)",
       "Bash(node -e ' *)",
       "Bash(node \"C:/Users/PV01/AppData/Local/Temp/claude/e61abb816c33270c/fe50715e-a00d-4c7f-a067-cea131021152/scratchpad/skh_js_check.js\" web/app.js)",
-      "Bash(sed -i 's/#define AppVersion \"2.13.2\"/#define AppVersion \"2.14.0\"/' installer/OfflineOCR_Studio.iss)"
+      "Bash(sed -i 's/#define AppVersion \"2.13.2\"/#define AppVersion \"2.14.0\"/' installer/OfflineOCR_Studio.iss)",
+      "Bash(PYTHONIOENCODING=utf-8 .venv/Scripts/python.exe -m unittest tests.test_person_name)"
     ],
     "additionalDirectories": [
       "D:\\Project\\DesktopApp\\license_tool\\utils",

@@ -27,9 +27,9 @@ class AsciiNameTests(unittest.TestCase):
         self.assertEqual(self.build(fields, "{so}_{trichyeu}"), "496_VeViecDeNghiKiemTraSuaChuaDot2Thang92026")
 
     def test_other_fields_keep_accents(self):
-        # chỉ trích yếu bỏ dấu; loại / cơ quan / số giữ nguyên (QĐ, CALĐ)
-        fields = {**FIELDS, "coquan": "CALĐ"}
-        self.assertEqual(self.build(fields, "{loai}_{coquan}_{so}_{trichyeu}"), "QĐ_CALĐ_123_VeViecPheDuyetKeHoach")
+        # chỉ trích yếu bỏ dấu; loại / cơ quan / số giữ nguyên (QĐ, CATLĐ)
+        fields = {**FIELDS, "coquan": "CATLĐ"}
+        self.assertEqual(self.build(fields, "{loai}_{coquan}_{so}_{trichyeu}"), "QĐ_CATLĐ_123_VeViecPheDuyetKeHoach")
 
     def test_off_keeps_vietnamese(self):
         fields = {"so": "56/BC-CAT", "trichyeu": "Quyết định bổ nhiệm"}
