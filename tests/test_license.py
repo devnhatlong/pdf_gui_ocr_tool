@@ -2,6 +2,7 @@
 import base64
 import os
 import tempfile
+import time
 import unittest
 from datetime import date, timedelta
 from unittest import mock
@@ -22,8 +23,24 @@ def make_key(private_key, product, machine_id, expiry):
     return f"{b64e(payload)}.{b64e(private_key.sign(payload))}"
 
 
+class MemoryStore:
+    def __init__(self, data=None):
+        self.data = data
+
+    def read(self):
+        return self.data
+
+    def write(self, data):
+        self.data = data
+        return True
+
+
 class LicenseKeyTests(unittest.TestCase):
     def setUp(self):
+        self.stores = [MemoryStore(), MemoryStore(), MemoryStore()]
+        patcher = mock.patch.object(lic, "_stores", lambda: self.stores)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.private_key = Ed25519PrivateKey.generate()
         public_hex = self.private_key.public_key().public_bytes(
             serialization.Encoding.Raw, serialization.PublicFormat.Raw).hex()
@@ -101,6 +118,72 @@ class LicenseKeyTests(unittest.TestCase):
             f.write(base64.b64encode(f"{payload}|{lic.sign(payload)}".encode()).decode())
         self.assertFalse(lic.check_license())
         self.assertIsNone(lic.get_license_info())
+
+    def test_time_limited_license_not_extended_by_rolling_clock_back(self):
+        expiry = date.today() + timedelta(days=5)
+        self.assertTrue(lic.verify_license_key(self.key(expiry=expiry.isoformat()))[0])
+        # Đã từng chạy sau ngày hết hạn, rồi lùi đồng hồ về trước
+        later = time.time() + 10 * 86400
+        with mock.patch.object(lic.time, "time", return_value=later):
+            lic._sync_state()
+        ok, message = lic.verify_license_key(self.key(expiry=expiry.isoformat()))
+        self.assertFalse(ok)
+        self.assertIn("hết hạn", message)
+
+    def test_permanent_license_ignores_clock(self):
+        with mock.patch.object(lic.time, "time", return_value=time.time() + 400 * 86400):
+            lic._sync_state()
+        self.assertTrue(lic.verify_license_key(self.key(expiry="2099-12-31"))[0])
+
+
+class TrialTests(unittest.TestCase):
+    def setUp(self):
+        self.mid = lic.get_machine_id()
+        self.stores = [MemoryStore(), MemoryStore(), MemoryStore()]
+        patcher = mock.patch.object(lic, "_stores", lambda: self.stores)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def legacy(self, first_run):
+        payload = f"{self.mid}|{int(first_run)}"
+        return f"{payload}|{lic.sign(payload)}"
+
+    def test_first_run_writes_every_store(self):
+        self.assertTrue(lic.check_trial())
+        self.assertTrue(all(s.data for s in self.stores))
+        self.assertEqual(len({s.data for s in self.stores}), 1)
+
+    def test_deleting_one_store_does_not_reset_trial(self):
+        expired = time.time() - (lic.TRIAL_DAYS + 1) * 86400
+        self.stores[1].data = self.legacy(expired)
+        lic.check_trial()
+        self.stores[0].data = None          # xóa registry
+        self.assertFalse(lic.check_trial())
+        self.assertIsNotNone(self.stores[0].data)   # được khôi phục
+
+    def test_legacy_registry_record_is_migrated(self):
+        expired = time.time() - (lic.TRIAL_DAYS + 1) * 86400
+        self.stores[0].data = self.legacy(expired)
+        self.assertFalse(lic.check_trial())
+        self.assertEqual(lic.get_trial_info(), {"remaining_days": 0, "is_trial": False})
+        self.assertEqual(self.stores[2].data.count("|"), 3)
+
+    def test_rolling_clock_back_does_not_extend_trial(self):
+        self.assertTrue(lic.check_trial())
+        with mock.patch.object(lic.time, "time", return_value=time.time() + 2 * 86400):
+            self.assertFalse(lic.check_trial())
+        self.assertFalse(lic.check_trial())   # đồng hồ về lại hiện tại
+
+    def test_forged_record_ignored(self):
+        payload = f"{self.mid}|{int(time.time())}|{int(time.time())}"
+        self.stores[0].data = f"{payload}|{'0' * 64}"
+        self.stores[1].data = self.legacy(time.time() - 10 * 86400)
+        self.assertFalse(lic.check_trial())
+
+    def test_other_machine_record_ignored(self):
+        payload = f"{'0' * 32}|{int(time.time()) - 10 * 86400}"
+        self.stores[0].data = f"{payload}|{lic.sign(payload)}"
+        self.assertTrue(lic.check_trial())
 
 
 if __name__ == "__main__":

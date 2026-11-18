@@ -138,6 +138,13 @@ class QpplSummaryTests(unittest.TestCase):
                 "Quy định chức năng, nhiệm vụ, quyền hạn\nCăn cứ Luật Tổ chức Chính phủ\n")
         self.assertEqual(self.summary(text), "Nghị định Quy định chức năng, nhiệm vụ, quyền hạn")
 
+    def test_type_word_merged_with_stamp_column(self):
+        # OCR ghép con dấu "ĐẾN" bên trái vào cùng dòng với tên loại
+        text = ("CHÍNH PHỦ   CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM\nSố: 17/2015/NĐ-CP   Hà Nội, ngày 14 tháng 02 năm 2015\n"
+                "CÔNG THÔNG TIN ĐIỆN TỬ CHÍNH PHỦ\nĐẾN Ý - 300, DINH   Ngày: 2570212015   NGHỊ ĐỊNH\n"
+                "Quy định tiền lương tăng thêm\nvà người hưởng lương\nCăn cứ Luật Tổ chức Chính phủ\n")
+        self.assertEqual(self.summary(text), "Nghị định Quy định tiền lương tăng thêm và người hưởng lương")
+
     def test_does_not_override_vv_summary(self):
         text = ("CÔNG AN TỈNH\nSố: 10/CV-PV01\nV/v đề nghị phối hợp kiểm tra\nKính gửi: ...\n")
         self.assertEqual(self.summary(text), "V/v đề nghị phối hợp kiểm tra")

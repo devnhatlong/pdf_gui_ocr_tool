@@ -131,7 +131,15 @@
       "Bash(node -e ' *)",
       "Bash(node \"C:/Users/PV01/AppData/Local/Temp/claude/e61abb816c33270c/fe50715e-a00d-4c7f-a067-cea131021152/scratchpad/skh_js_check.js\" web/app.js)",
       "Bash(sed -i 's/#define AppVersion \"2.13.2\"/#define AppVersion \"2.14.0\"/' installer/OfflineOCR_Studio.iss)",
-      "Bash(PYTHONIOENCODING=utf-8 .venv/Scripts/python.exe -m unittest tests.test_person_name)"
+      "Bash(PYTHONIOENCODING=utf-8 .venv/Scripts/python.exe -m unittest tests.test_person_name)",
+      "Read(//d/Temp/Claude/**)",
+      "Bash(iconv -f utf-16 -t utf-8)",
+      "PowerShell($env:TEMP = \"D:\\\\Temp\\\\Claude\"; $env:TMP = \"D:\\\\Temp\\\\Claude\"; $env:PIP_CACHE_DIR = \"D:\\\\AI\\\\Cache\\\\pip\"; & .\\\\build_installer.ps1 -Edition All)",
+      "Bash(ls /c/Users/PV01/Desktop/ | grep -i cp; ls /d/Project/DesktopApp/pdf_gui_ocr_tool/core/; grep -n \"def \\\\|extract_metadata\\(\" /d/Project/DesktopApp/pdf_gui_ocr_tool/core/api.py | grep -i \"ocr\\\\|meta\\\\|extract\" | head -30)",
+      "Read(//c/Users/PV01/Desktop//**)",
+      "Bash(python -m unittest discover -s tests -q)",
+      "Bash(.venv/Scripts/python -c \"import cryptography, webview; print\\('ok'\\)\")",
+      "Bash(.venv/Scripts/python -m unittest tests.test_license)"
     ],
     "additionalDirectories": [
       "D:\\Project\\DesktopApp\\license_tool\\utils",

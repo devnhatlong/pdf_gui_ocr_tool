@@ -38,8 +38,6 @@ def _license_path():
         if os.path.exists(path):
             return path
     return LICENSE_FILE
-REGISTRY_KEY = r"SOFTWARE\PDF_GUI_OCR"  # Registry key để lưu trial data
-REGISTRY_VALUE = "TrialData"  # Tên value trong registry
 
 
 def get_machine_id():
@@ -57,219 +55,133 @@ def sign(data: str):
     return hmac.new(SECRET_KEY, data.encode(), hashlib.sha256).hexdigest()
 
 
-def _get_registry_key(mode=None):
-    """Lấy registry key, tạo nếu chưa có (khi mode = KEY_WRITE)"""
-    if not HAS_WINREG:
-        return None
-    if mode is None:
-        mode = winreg.KEY_READ
-    try:
-        # Mở/Create key trong HKEY_CURRENT_USER
-        if mode == winreg.KEY_WRITE:
-            key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, REGISTRY_KEY)
-        else:
-            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, REGISTRY_KEY, 0, mode)
-        return key
-    except Exception:
-        return None
+# === Dữ liệu dùng thử ===
+# Một bản ghi "machine_id|lần_chạy_đầu|lần_chạy_muộn_nhất|chữ_ký" lưu ở NHIỀU nơi (registry + 2 file ẩn ở 2 thư mục
+# khác nhau). Mỗi lần kiểm tra: gộp mọi bản còn đọc được (lần chạy đầu SỚM nhất, lần chạy muộn nhất MUỘN nhất)
+# rồi ghi lại đủ mọi nơi -> xóa một chỗ thì chỗ khác khôi phục lại.
+# "Lần chạy muộn nhất" chống lùi đồng hồ: thời điểm tính hạn = max(giờ máy, lần chạy muộn nhất).
+# Bản cũ chỉ có "machine_id|lần_chạy_đầu|chữ_ký" (registry TrialData, file .trial.dat) -> vẫn đọc được.
+REGISTRY_KEY = r"SOFTWARE\PDF_GUI_OCR"
+REGISTRY_VALUE = "TrialData"
 
 
-def _save_trial_to_registry(first_run_timestamp, machine_id):
-    """Lưu trial data vào Registry với signature"""
-    if not HAS_WINREG:
-        return False
-    
-    try:
-        # Tạo payload: machine_id|first_run
-        payload = f"{machine_id}|{first_run_timestamp}"
-        sig = sign(payload)
-        # Lưu: payload|signature
-        trial_data = f"{payload}|{sig}"
-        
-        key = _get_registry_key(winreg.KEY_WRITE)
-        if key:
-            winreg.SetValueEx(key, REGISTRY_VALUE, 0, winreg.REG_SZ, trial_data)
-            winreg.CloseKey(key)
-            return True
-    except Exception:
-        pass
-    return False
-
-
-def _load_trial_from_registry(machine_id):
-    """Đọc trial data từ Registry và validate"""
-    if not HAS_WINREG:
-        return None
-    
-    try:
-        key = _get_registry_key(winreg.KEY_READ)
-        if not key:
+class _RegistryStore:
+    def read(self):
+        if not HAS_WINREG:
             return None
-        
         try:
-            trial_data, _ = winreg.QueryValueEx(key, REGISTRY_VALUE)
-            winreg.CloseKey(key)
-        except FileNotFoundError:
-            winreg.CloseKey(key)
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REGISTRY_KEY, 0, winreg.KEY_READ) as key:
+                return winreg.QueryValueEx(key, REGISTRY_VALUE)[0]
+        except OSError:
             return None
-        
-        # Parse: payload|signature
-        parts = trial_data.split("|")
-        if len(parts) != 3:
-            return None
-        
-        stored_machine_id, first_run_str, sig = parts
-        
-        # Kiểm tra Machine ID phải khớp
-        if stored_machine_id != machine_id:
-            return None
-        
-        # Validate signature
-        payload = f"{stored_machine_id}|{first_run_str}"
-        expected_sig = sign(payload)
-        if sig != expected_sig:
-            return None  # Signature không hợp lệ, có thể bị giả mạo
-        
-        first_run = int(first_run_str)
-        return first_run
-    except Exception:
-        pass
-    return None
+
+    def write(self, data):
+        if not HAS_WINREG:
+            return False
+        try:
+            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, REGISTRY_KEY) as key:
+                winreg.SetValueEx(key, REGISTRY_VALUE, 0, winreg.REG_SZ, data)
+            return True
+        except OSError:
+            return False
 
 
-def _get_fallback_trial_path():
-    """Lấy đường dẫn file ẩn cho trial data (fallback cho non-Windows)"""
-    try:
-        # Windows: AppData\Local (ẩn, không phải trong thư mục app)
-        # Linux/Mac: ~/.config hoặc ~/.local/share
-        if os.name == 'nt':  # Windows
-            appdata = os.getenv('LOCALAPPDATA', os.getenv('APPDATA', os.path.expanduser('~')))
-            trial_dir = os.path.join(appdata, 'PDF_GUI_OCR')
-            os.makedirs(trial_dir, exist_ok=True)
-            return os.path.join(trial_dir, '.trial.dat')  # File ẩn với dấu chấm
-        else:  # Linux/Mac
-            config_dir = os.path.join(os.path.expanduser('~'), '.config', 'pdf_gui_ocr')
-            os.makedirs(config_dir, exist_ok=True)
-            return os.path.join(config_dir, '.trial.dat')
-    except Exception:
+class _FileStore:
+    def __init__(self, path):
+        self.path = path
+
+    def read(self):
+        try:
+            with open(self.path, "r", encoding="utf-8") as f:
+                return f.read()
+        except OSError:
+            return None
+
+    def write(self, data):
+        try:
+            os.makedirs(os.path.dirname(self.path), exist_ok=True)
+            if os.path.exists(self.path):
+                # Windows không cho mở file ẩn ở chế độ "w" -> ghi đè tại chỗ
+                with open(self.path, "r+", encoding="utf-8") as f:
+                    f.write(data)
+                    f.truncate()
+            else:
+                with open(self.path, "w", encoding="utf-8") as f:
+                    f.write(data)
+                if os.name == "nt":
+                    import ctypes
+                    ctypes.windll.kernel32.SetFileAttributesW(self.path, 2)  # FILE_ATTRIBUTE_HIDDEN
+            return True
+        except Exception:
+            return False
+
+
+def _stores():
+    """Các nơi lưu dữ liệu dùng thử."""
+    home = os.path.expanduser("~")
+    if os.name == "nt":
+        local = os.getenv("LOCALAPPDATA") or os.getenv("APPDATA") or home
+        shared = os.getenv("PROGRAMDATA") or os.getenv("ALLUSERSPROFILE") or home
+        files = [os.path.join(local, "PDF_GUI_OCR", ".trial.dat"),
+                 os.path.join(shared, "PDF_GUI_OCR", ".trial.dat")]
+    else:
+        files = [os.path.join(home, ".config", "pdf_gui_ocr", ".trial.dat"),
+                 os.path.join(home, ".local", "share", "pdf_gui_ocr", ".trial.dat")]
+    return [_RegistryStore()] + [_FileStore(p) for p in files]
+
+
+def _parse_trial(data, machine_id):
+    """(lần chạy đầu, lần chạy muộn nhất) nếu bản ghi hợp lệ và đúng máy, ngược lại None."""
+    parts = (data or "").strip().split("|")
+    if len(parts) not in (3, 4) or parts[0] != machine_id:
         return None
-
-
-def _save_trial_fallback(first_run_timestamp, machine_id):
-    """Lưu trial data vào file ẩn (fallback cho non-Windows hoặc khi Registry không hoạt động)"""
-    trial_path = _get_fallback_trial_path()
-    if not trial_path:
-        return False
-    
-    try:
-        payload = f"{machine_id}|{first_run_timestamp}"
-        sig = sign(payload)
-        trial_data = f"{payload}|{sig}"
-        
-        with open(trial_path, "w", encoding="utf-8") as f:
-            f.write(trial_data)
-        
-        # Trên Windows, set file attribute ẩn
-        if os.name == 'nt':
-            try:
-                import ctypes
-                ctypes.windll.kernel32.SetFileAttributesW(trial_path, 2)  # FILE_ATTRIBUTE_HIDDEN
-            except:
-                pass
-        return True
-    except Exception:
-        return False
-
-
-def _load_trial_fallback(machine_id):
-    """Đọc trial data từ file ẩn và validate (fallback)"""
-    trial_path = _get_fallback_trial_path()
-    if not trial_path or not os.path.exists(trial_path):
+    if not hmac.compare_digest(parts[-1], sign("|".join(parts[:-1]))):
         return None
-    
     try:
-        with open(trial_path, "r", encoding="utf-8") as f:
-            trial_data = f.read().strip()
-        
-        # Parse: payload|signature
-        parts = trial_data.split("|")
-        if len(parts) != 3:
-            return None
-        
-        stored_machine_id, first_run_str, sig = parts
-        
-        # Kiểm tra Machine ID phải khớp
-        if stored_machine_id != machine_id:
-            return None
-        
-        # Validate signature
-        payload = f"{stored_machine_id}|{first_run_str}"
-        expected_sig = sign(payload)
-        if sig != expected_sig:
-            return None  # Signature không hợp lệ
-        
-        first_run = int(first_run_str)
-        return first_run
-    except Exception:
-        pass
-    return None
+        first = int(parts[1])
+        last = int(parts[2]) if len(parts) == 4 else first
+    except ValueError:
+        return None
+    return first, max(first, last)
+
+
+def _sync_state():
+    """Gộp + ghi lại dữ liệu dùng thử ở mọi nơi. Trả về (lần chạy đầu, thời điểm hiện tại đã chống lùi giờ)."""
+    machine_id = get_machine_id()
+    now = int(time.time())
+    stores = _stores()
+    records = [r for r in (_parse_trial(s.read(), machine_id) for s in stores) if r]
+    first = min((r[0] for r in records), default=now)
+    last = max([now] + [r[1] for r in records])
+    payload = f"{machine_id}|{first}|{last}"
+    data = f"{payload}|{sign(payload)}"
+    for s in stores:
+        if (s.read() or "").strip() != data:
+            s.write(data)
+    return first, last
+
+
+def _today():
+    """Ngày hiện tại dùng để tính hạn: không lùi được bằng cách chỉnh đồng hồ máy."""
+    return date.fromtimestamp(_sync_state()[1])
+
+
+def _trial_remaining_days():
+    first, now = _sync_state()
+    return TRIAL_DAYS - (now - first) / 86400
 
 
 def check_trial():
     """Kiểm tra xem còn trong thời gian dùng thử không"""
-    machine_id = get_machine_id()
-    current_time = int(time.time())
-    
-    # Đọc từ Registry (Windows) hoặc file ẩn (non-Windows)
-    first_run = _load_trial_from_registry(machine_id)
-    
-    # Fallback: nếu không có trong Registry, thử đọc từ file ẩn
-    if first_run is None:
-        first_run = _load_trial_fallback(machine_id)
-    
-    # Nếu vẫn không có, đây là lần đầu chạy - tạo trial mới
-    if first_run is None:
-        first_run = current_time
-        # Lưu vào Registry (ưu tiên, Windows)
-        if not _save_trial_to_registry(first_run, machine_id):
-            # Fallback về file ẩn nếu không lưu được Registry (non-Windows hoặc lỗi)
-            _save_trial_fallback(first_run, machine_id)
-    
-    # Tính toán thời gian còn lại
-    days_used = (current_time - first_run) / 86400  # 86400 = số giây trong 1 ngày
-    remaining_days = TRIAL_DAYS - days_used
-    
-    return remaining_days > 0
+    return _trial_remaining_days() > 0
 
 
 def get_trial_info():
     """Lấy thông tin trial (số ngày còn lại)"""
-    machine_id = get_machine_id()
-    current_time = time.time()
-    
-    # Đọc từ Registry (Windows) hoặc file ẩn (non-Windows)
-    first_run = _load_trial_from_registry(machine_id)
-    
-    # Fallback: nếu không có trong Registry, thử đọc từ file ẩn
-    if first_run is None:
-        first_run = _load_trial_fallback(machine_id)
-    
-    # Nếu vẫn không có, đây là lần đầu chạy
-    if first_run is None:
-        return {"remaining_days": TRIAL_DAYS, "is_trial": True}
-    
-    # Tính toán thời gian còn lại
-    days_used = (current_time - first_run) / 86400
-    remaining_days = max(0, TRIAL_DAYS - days_used)
-    
-    # Làm tròn lên để tránh trường hợp 0.998264 thành 0
-    # Nếu còn > 0 thì tính là ít nhất 1 ngày
+    remaining_days = max(0.0, _trial_remaining_days())
+    # Còn > 0 thì tính là ít nhất 1 ngày (tránh 0.99 thành 0)
     remaining_days_int = int(remaining_days) if remaining_days >= 1.0 else (1 if remaining_days > 0 else 0)
-    
-    return {
-        "remaining_days": remaining_days_int,
-        "is_trial": remaining_days > 0
-    }
+    return {"remaining_days": remaining_days_int, "is_trial": remaining_days > 0}
 
 
 def _b64d(text: str) -> bytes:
@@ -317,7 +229,7 @@ def verify_license_key(license_key: str):
         expiry_date = datetime.strptime(expiry_str, "%Y-%m-%d").date()
     except ValueError:
         return False, "License Key không hợp lệ (ngày hết hạn sai)"
-    if date.today() > expiry_date:
+    if _today() > expiry_date:
         return False, f"License Key đã hết hạn ngày {expiry_date.strftime('%d/%m/%Y')}"
 
     return True, "License Key hợp lệ"
@@ -374,7 +286,7 @@ def get_license_info():
 
         try:
             expiry_date = datetime.strptime(expiry_str, "%Y-%m-%d").date()
-            remaining_days = (expiry_date - date.today()).days
+            remaining_days = (expiry_date - _today()).days
         except:
             remaining_days = None
         

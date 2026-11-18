@@ -338,8 +338,15 @@ class _Extractor:
             stop_prefixes = ("can cu", "kinh gui", "so ", "so:", "ngay", "dieu ", "chuong ",
                              "cong hoa", "doc lap", "ha noi", "theo de nghi", "xet de nghi")
             for idx, line in enumerate(original_lines):
-                key = re.sub(r"\s+", " ", re.sub(r"[^a-z ]", "", self.remove_accents(line.strip()))).strip()
-                if key not in qppl_types:
+                # OCR có thể ghép con dấu "ĐẾN ... Ngày: ..." bên trái vào cùng dòng với tên loại,
+                # các cột cách nhau >= 2 dấu cách -> xét từng cột.
+                key = None
+                for seg in re.split(r"\s{2,}", line.strip()):
+                    k = re.sub(r"\s+", " ", re.sub(r"[^a-z ]", "", self.remove_accents(seg))).strip()
+                    if k in qppl_types:
+                        key = k
+                        break
+                if key is None:
                     continue
                 title_lines = []
                 for j in range(idx + 1, min(idx + 4, len(original_lines))):
