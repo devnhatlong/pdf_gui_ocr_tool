@@ -27,6 +27,13 @@ class ResolveTypeTests(unittest.TestCase):
     def test_unit_code_after_slash_is_cong_van(self):
         self.assertEqual(metadata.resolve_type("", "1831/PV01-CNTT"), "CV")
 
+    def test_agency_only_number_is_cong_van(self):
+        for so in ("123/CAX", "123/PA05", "123/UBND", "123/CAX-PV01", "45/ABC", "45/2026/UBND"):
+            self.assertEqual(metadata.resolve_type("", so), "CV", so)
+
+    def test_unknown_type_code_with_agency_kept(self):
+        self.assertEqual(metadata.resolve_type("", "5/TT-BCA"), "TT")
+
     def test_year_in_number_is_skipped(self):
         self.assertEqual(metadata.resolve_type("", "45/2026/NĐ-CP"), "NĐ")
 

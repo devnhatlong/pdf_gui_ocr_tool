@@ -481,20 +481,28 @@ def _match_type_code(code, pairs):
     return code.upper()
 
 
-def resolve_type(text, so_ky_hieu, type_map=None):
+def resolve_type(text, so_ky_hieu, type_map=None, agency_map=None):
     """Loại văn bản: ưu tiên mã chữ ngay sau dấu / của số ký hiệu (1794/QĐ-XPHC -> QĐ).
-    Số dạng số/ĐƠNVỊ (1831/PV01-CNTT, mã đơn vị có số) là công văn -> CV.
-    Không có / thì tra theo chữ tiêu đề OCR (DANH SÁCH, BÁO CÁO...). Mã lạ vẫn giữ (496/BCĐX -> BCĐX)."""
+    Văn bản có tên loại ghi số/LOẠI-CƠQUAN; công văn ghi số/CƠQUAN -> mã sau / là cơ quan / đơn vị
+    (có chữ số như PV01, nằm trong bảng cơ quan như CAX, hoặc đứng một mình như 123/ABC) thì là công văn -> CV.
+    Không có / thì tra theo chữ tiêu đề OCR (DANH SÁCH, BÁO CÁO...). Mã loại lạ vẫn giữ (496/BCĐX-PV01 -> BCĐX)."""
     pairs = _as_pairs(type_map, DEFAULT_TYPE_MAP)
-    m = re.search(r"/\s*([A-Za-z0-9Đđ]+)", so_ky_hieu or "")
+    m = re.search(r"/\s*([A-Za-z0-9Đđ]+)(\s*-)?", so_ky_hieu or "")
     if m:
-        first = m.group(1)
+        first, has_more = m.group(1), bool(m.group(2))
         if re.fullmatch(r"\d{4}", first):   # 45/2026/NĐ-CP: bỏ năm, lấy mã sau dấu / kế tiếp
-            m2 = re.search(r"/\s*\d{4}\s*/\s*([A-Za-zĐđ]+)", so_ky_hieu)
-            first = m2.group(1) if m2 else first
+            m2 = re.search(r"/\s*\d{4}\s*/\s*([A-Za-zĐđ]+)(\s*-)?", so_ky_hieu)
+            if m2:
+                first, has_more = m2.group(1), bool(m2.group(2))
         if re.search(r"[A-Za-zĐđ]", first) and not re.search(r"\d", first):
-            return _match_type_code(first, pairs)
-        # mã sau / có chữ số (PV01...) = mã đơn vị, số không ghi loại -> công văn
+            code = remove_accents(first).upper()
+            if any(remove_accents(tat).upper() == code for _ten, tat in pairs):
+                return _match_type_code(first, pairs)
+            is_agency = any(remove_accents(tat).upper() == code
+                            for _ten, tat in _as_pairs(agency_map, DEFAULT_AGENCY_MAP))
+            if has_more and not is_agency:
+                return _match_type_code(first, pairs)   # mã loại chưa có trong bảng (NĐ, TT...)
+        # mã sau / là cơ quan / đơn vị, số không ghi loại -> công văn
         for ten, tat in pairs:
             if remove_accents(ten).strip() == "cong van":
                 return tat
@@ -581,7 +589,7 @@ def detect_secrecy(ocr):
 def extract_metadata(text, type_map=None, agency_map=None):
     """Thông tin văn bản từ văn bản OCR (theo thứ tự đọc). type_map / agency_map: bảng viết tắt từ Cài đặt."""
     meta = _extractor.extract_metadata_from_ocr(text)
-    loai = resolve_type(text, meta["so_ky_hieu"], type_map)
+    loai = resolve_type(text, meta["so_ky_hieu"], type_map, agency_map)
     if loai:
         meta["loai_van_ban"] = loai
     meta["co_quan"], meta["co_quan_viet_tat"] = detect_agency(text, agency_map)
